@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Recursive Companion MCP Server - AWS Bedrock Edition
+Based on Hank Besser's recursive-companion: https://github.com/hankbesser/recursive-companion
 Implements iterative refinement through Draft → Critique → Revise → Converge cycles
 """
 import asyncio
