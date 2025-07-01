@@ -1,0 +1,5 @@
+# Configuration for uv
+python-preference = "only-system"
+
+[pip]
+index-url = "https://pypi.org/simple"
