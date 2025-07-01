@@ -1,6 +1,6 @@
 # Recursive Companion MCP
 
-An MCP (Model Context Protocol) server that implements iterative refinement through self-critique cycles. Inspired by the sequential-thinking pattern, this tool enables AI models to improve their responses through multiple rounds of critique and revision.
+An MCP (Model Context Protocol) server that implements iterative refinement through self-critique cycles. Based on [Hank Besser's recursive-companion](https://github.com/hankbesser/recursive-companion), this implementation adds incremental processing to avoid timeouts and enable progress visibility.
 
 ## Features
 
@@ -137,7 +137,13 @@ uv run python test_incremental.py
 
 ## Attribution
 
-This project is inspired by the sequential-thinking pattern demonstrated in various MCP implementations. The incremental approach was developed to solve timeout issues while maintaining refinement quality.
+This project is based on [recursive-companion](https://github.com/hankbesser/recursive-companion) by Hank Besser. The original implementation provided the foundational Draft → Critique → Revise → Converge pattern. This MCP version adds:
+
+- Session-based incremental processing to avoid timeouts
+- AWS Bedrock integration for Claude and Titan embeddings
+- Domain auto-detection and specialized prompts
+- Mathematical convergence measurement
+- Support for different models for critiques vs generation
 
 ## Contributing
 
@@ -149,6 +155,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
+- Original concept and implementation: [Hank Besser's recursive-companion](https://github.com/hankbesser/recursive-companion)
 - Built for the [Model Context Protocol](https://github.com/anthropics/mcp)
 - Uses AWS Bedrock for LLM access
 - Inspired by iterative refinement patterns in AI reasoning

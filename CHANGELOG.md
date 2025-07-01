@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Initial release of Recursive Companion MCP
+- Based on [Hank Besser's recursive-companion](https://github.com/hankbesser/recursive-companion)
 - Incremental refinement engine with session management
 - Support for 5 MCP tools: start_refinement, continue_refinement, get_refinement_status, get_final_result, list_refinement_sessions
 - Domain auto-detection for technical, marketing, strategy, legal, financial, and general content
