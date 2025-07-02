@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "recursive-companion-mcp"
 version = "1.0.0"
-description = "MCP server for iterative refinement through self-critique cycles using AWS Bedrock. Based on Hank Besser's recursive-companion."
+description = "MCP server for iterative refinement through self-critique cycles using AWS Bedrock. Inspired by Hank Besser's recursive-companion."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
