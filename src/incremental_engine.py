@@ -380,27 +380,51 @@ class IncrementalRefineEngine:
 
     
     async def _do_revise_step(self, session: RefinementSession) -> Dict[str, Any]:
-        """Synthesize revision and check convergence"""
+        """Synthesize revision and check convergence using tools"""
         system_prompt = self._get_domain_system_prompt(session.domain)
         critique_summary = "\n\n".join([f"Critique {i+1}: {c}" for i, c in enumerate(session.critiques)])
         
-        revision_prompt = f"""Given the original question, current response, and critiques, create an improved version.
-
-Original question: {session.prompt}
+        # First, use tool-based revision
+        revision_prompt = f"""Original question: {session.prompt}
 
 Current response: {session.current_draft}
 
 Critiques:
-{critique_summary}
+{critique_summary}"""
+        
+        # Get revision suggestions using tools
+        revision_result = await self.bedrock.refine_with_tools(
+            prompt=revision_prompt,
+            system_prompt=system_prompt,
+            phase="revise"
+        )
+        
+        # Generate the actual revision based on tool suggestions
+        final_revision_prompt = f"""Create an improved response based on these revision suggestions:
 
-Create an improved response that addresses these critiques while maintaining accuracy and clarity."""
+{revision_result.get('text', '')}
+
+Original question: {session.prompt}
+Current response: {session.current_draft}
+
+Create an improved version that addresses the identified issues."""
         
-        revision = await self.bedrock.generate_text(revision_prompt, system_prompt, temperature=0.6)
+        revision = await self.bedrock.generate_text(final_revision_prompt, system_prompt, temperature=0.6)
         
-        # Calculate convergence
+        # Check convergence using tools
+        convergence_result = await self.bedrock.refine_with_tools(
+            prompt=f"Current iteration: {session.current_iteration}\nOriginal: {session.current_draft[:500]}\nRevised: {revision[:500]}",
+            system_prompt="Assess if the revision has significantly improved the response",
+            phase="converge"
+        )
+        
+        # Also calculate traditional convergence score
         current_embedding = await self.bedrock.get_embedding(revision)
         previous_embedding = await self.bedrock.get_embedding(session.current_draft)
         convergence_score = self._cosine_similarity(previous_embedding, current_embedding)
+        
+        # Combine tool-based and embedding-based convergence assessment
+        tool_says_converged = convergence_result.get('analysis', {}).get('convergence_ready', False)
         
         # Update session
         self.session_manager.update_session(
@@ -408,7 +432,13 @@ Create an improved response that addresses these critiques while maintaining acc
             previous_draft=session.current_draft,
             current_draft=revision,
             convergence_score=convergence_score,
-            current_iteration=session.current_iteration + 1
+            current_iteration=session.current_iteration + 1,
+            metadata={
+                **session.metadata,
+                "revision_tools": revision_result.get('tool_calls', []),
+                "convergence_tools": convergence_result.get('tool_calls', []),
+                "tool_convergence": tool_says_converged
+            }
         )
         
         # Add to iteration history
@@ -416,11 +446,12 @@ Create an improved response that addresses these critiques while maintaining acc
             "iteration": session.current_iteration,
             "type": "revision",
             "convergence_score": convergence_score,
+            "tool_convergence": tool_says_converged,
             "timestamp": datetime.utcnow().isoformat()
         })
         
-        # Check if converged
-        if convergence_score >= session.convergence_threshold:
+        # Check if converged (either by score or tool assessment)
+        if convergence_score >= session.convergence_threshold or tool_says_converged:
             self.session_manager.update_session(
                 session.session_id,
                 status=RefinementStatus.CONVERGED
