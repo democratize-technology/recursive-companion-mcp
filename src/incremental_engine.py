@@ -258,7 +258,8 @@ class IncrementalRefineEngine:
             "success": True,
             "status": "draft_complete",
             "iteration": 1,
-            "message": "Initial draft generated. Ready for critiques.",
+            "progress": self._format_progress(session),
+            "message": f"{self._get_status_emoji(RefinementStatus.DRAFTING)} Initial draft generated. Ready for critiques.",
             "draft_preview": draft[:300] + "..." if len(draft) > 300 else draft,
             "next_action": "continue_refinement",
             "continue_needed": True
@@ -295,8 +296,10 @@ class IncrementalRefineEngine:
             "success": True,
             "status": "critiques_complete",
             "iteration": session.current_iteration,
-            "message": f"Generated {len(valid_critiques)} critiques. Ready to revise.",
+            "progress": self._format_progress(session),
+            "message": f"{self._get_status_emoji(RefinementStatus.CRITIQUING)} Generated {len(valid_critiques)} critiques. Ready to revise.",
             "critique_count": len(valid_critiques),
+            "critique_preview": valid_critiques[0][:100] + "..." if valid_critiques else None,
             "next_action": "continue_refinement",
             "continue_needed": True
         }
@@ -352,7 +355,8 @@ Create an improved response that addresses these critiques while maintaining acc
             return {
                 "success": True,
                 "status": "converged",
-                "message": f"Refinement converged at iteration {session.current_iteration}!",
+                "progress": self._format_progress(session),
+                "message": f"{self._get_status_emoji(RefinementStatus.CONVERGED)} Refinement converged at iteration {session.current_iteration}!",
                 "final_answer": revision,
                 "convergence_score": round(convergence_score, 4),
                 "total_iterations": session.current_iteration,
@@ -369,7 +373,8 @@ Create an improved response that addresses these critiques while maintaining acc
                 "success": True,
                 "status": "revision_complete",
                 "iteration": session.current_iteration,
-                "message": f"Revision complete. Convergence: {round(convergence_score, 4)}",
+                "progress": self._format_progress(session),
+                "message": f"{self._get_status_emoji(RefinementStatus.REVISING)} Revision complete. Convergence: {round(convergence_score, 4)}",
                 "convergence_score": round(convergence_score, 4),
                 "draft_preview": revision[:300] + "..." if len(revision) > 300 else revision,
                 "next_action": "continue_refinement",
@@ -388,6 +393,8 @@ Create an improved response that addresses these critiques while maintaining acc
         return {
             "success": True,
             "session": session.to_dict(),
+            "progress": self._format_progress(session),
+            "message": f"{self._get_status_emoji(session.status)} {self._get_action_description(session.status)}",
             "continue_needed": session.status not in [RefinementStatus.CONVERGED, RefinementStatus.ERROR]
         }
     
@@ -418,6 +425,70 @@ Create an improved response that addresses these critiques while maintaining acc
             },
             "thinking_history": session.iterations_history
         }
+    
+    async def abort_refinement(self, session_id: str) -> Dict[str, Any]:
+        """Stop refinement and return best result so far"""
+        session = self.session_manager.get_session(session_id)
+        if not session:
+            return {"success": False, "error": "Session not found"}
+        
+        # Mark as converged
+        self.session_manager.update_session(
+            session_id,
+            status=RefinementStatus.CONVERGED
+        )
+        
+        return {
+            "success": True,
+            "message": "Refinement aborted",
+            "final_answer": session.current_draft or session.previous_draft or "No content generated yet",
+            "iterations_completed": session.current_iteration,
+            "convergence_score": session.convergence_score,
+            "reason": "User requested abort"
+        }
+    
+    def _format_progress(self, session: RefinementSession) -> Dict[str, Any]:
+        """Create detailed progress information"""
+        # Estimate steps: draft(1) + (critique(1) + revise(1)) * iterations
+        estimated_total_steps = 1 + (2 * session.max_iterations)
+        current_step = 1 + (2 * session.current_iteration)
+        
+        if session.status == RefinementStatus.DRAFTING:
+            current_step = 1
+        elif session.status == RefinementStatus.CRITIQUING:
+            current_step = 2 + (2 * (session.current_iteration - 1))
+        elif session.status == RefinementStatus.REVISING:
+            current_step = 3 + (2 * (session.current_iteration - 1))
+        
+        return {
+            "step": f"{current_step}/{estimated_total_steps}",
+            "percent": round((current_step / estimated_total_steps) * 100),
+            "current_action": self._get_action_description(session.status),
+            "iteration": f"{session.current_iteration}/{session.max_iterations}",
+            "convergence": f"{session.convergence_score:.1%}",
+            "status_emoji": self._get_status_emoji(session.status)
+        }
+    
+    def _get_action_description(self, status: RefinementStatus) -> str:
+        """Human-friendly action descriptions"""
+        descriptions = {
+            RefinementStatus.DRAFTING: "Creating initial response",
+            RefinementStatus.CRITIQUING: "Analyzing for improvements",
+            RefinementStatus.REVISING: "Incorporating feedback",
+            RefinementStatus.CONVERGED: "Refinement complete!"
+        }
+        return descriptions.get(status, "Processing")
+    
+    def _get_status_emoji(self, status: RefinementStatus) -> str:
+        """Fun status indicators"""
+        emojis = {
+            RefinementStatus.DRAFTING: "✍️",
+            RefinementStatus.CRITIQUING: "🔍",
+            RefinementStatus.REVISING: "✨",
+            RefinementStatus.CONVERGED: "✅",
+            RefinementStatus.ERROR: "❌"
+        }
+        return emojis.get(status, "⏳")
     
     def _cosine_similarity(self, vec1: list, vec2: list) -> float:
         """Calculate cosine similarity between two vectors"""

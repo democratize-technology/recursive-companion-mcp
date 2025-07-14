@@ -1,55 +1,64 @@
 """
-Example usage of Recursive Companion MCP in Python code
+Example usage of Recursive Companion MCP
 This shows how the tool processes refinement requests
 """
 
-# Example request that would be sent to the MCP server:
-example_request = {
-    "tool": "refine_answer",
+# Example: Starting a refinement session
+start_request = {
+    "tool": "start_refinement",
     "arguments": {
         "prompt": "Write a technical specification for a user authentication system",
-        "domain": "technical",
-        "convergence_threshold": 0.95,
-        "max_iterations": 5,
-        "urgency": "normal"
+        "domain": "technical"  # optional, defaults to "auto"
     }
 }
 
-# Example response structure:
-example_response = {
+start_response = {
     "success": True,
-    "refined_answer": "# User Authentication System Specification\n\n## Overview\n[refined content here]...",
-    "metadata": {
-        "domain": "technical",
-        "iterations": 3,
-        "convergence_achieved": True,
-        "final_similarity": 0.962,
-        "convergence_threshold": 0.95,
-        "elapsed_time_seconds": 12.5,
-        "urgency": "normal",
-        "model": "anthropic.claude-3-sonnet-20240229-v1:0"
+    "session_id": "abc-123-def-456",
+    "status": "started",
+    "domain": "technical",
+    "message": "Refinement session started. Use continue_refinement to proceed.",
+    "next_action": "continue_refinement"
+}
+
+# Example: Continuing refinement (no session_id needed after recent improvements!)
+continue_request = {
+    "tool": "continue_refinement",
+    "arguments": {}  # Uses current session automatically
+}
+
+continue_response = {
+    "success": True,
+    "status": "draft_complete",
+    "iteration": 1,
+    "progress": {
+        "step": "2/11",
+        "percent": 18,
+        "current_action": "Analyzing for improvements",
+        "iteration": "1/5",
+        "convergence": "0.0%",
+        "status_emoji": "🔍"
     },
-    "thinking_history": {
-        "initial_draft": "[initial draft content]",
-        "critiques": [
-            "Critique 1: The security section needs more detail...",
-            "Critique 2: Consider adding rate limiting...",
-            "Critique 3: The API design should follow REST principles..."
-        ],
-        "revisions": [
-            "[revision 1 content]",
-            "[revision 2 content]",
-            "[revision 3 content]"
-        ],
-        "similarity_scores": [0.832, 0.921, 0.962]
+    "message": "✍️ Initial draft generated. Ready for critiques.",
+    "draft_preview": "# User Authentication System Specification...",
+    "next_action": "continue_refinement",
+    "continue_needed": True
+}
+
+# Example: Quick refinement for simple questions
+quick_request = {
+    "tool": "quick_refine",
+    "arguments": {
+        "prompt": "What is OAuth 2.0?",
+        "max_wait": 30  # seconds
     }
 }
 
-# The tool works by:
-# 1. Generating an initial draft based on the domain
-# 2. Creating multiple critiques in parallel
-# 3. Synthesizing critiques into a revision
-# 4. Measuring similarity between versions
-# 5. Repeating until convergence threshold is met
+# The refinement process:
+# 1. Generate initial draft (✍️)
+# 2. Create parallel critiques (🔍)
+# 3. Synthesize into revision (✨)
+# 4. Check convergence score
+# 5. Repeat until threshold met (✅)
 
-print("See this file for example request/response structures")
+print("See the README for complete tool documentation")

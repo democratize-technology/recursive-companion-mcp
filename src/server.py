@@ -48,6 +48,10 @@ MAX_PROMPT_LENGTH = int(os.getenv("MAX_PROMPT_LENGTH", "10000"))
 MIN_PROMPT_LENGTH = int(os.getenv("MIN_PROMPT_LENGTH", "10"))
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "300"))  # 5 minutes
 
+# Session tracking for better UX
+current_session_id = None
+session_history = []  # Track last 5 sessions
+
 # Domain configurations
 DOMAIN_KEYWORDS = {
     "technical": ["code", "algorithm", "api", "debug", "performance", "architecture", "system", "database", "security"],
@@ -410,17 +414,17 @@ async def handle_list_tools() -> list[Tool]:
             name="continue_refinement",
             description=(
                 "Continue an active refinement session by one step. "
-                "Each call performs one action: draft, critique, or revise."
+                "Each call performs one action: draft, critique, or revise. "
+                "If no session_id provided, continues the current session."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
                     "session_id": {
                         "type": "string",
-                        "description": "The refinement session ID"
+                        "description": "The refinement session ID (optional, uses current if not provided)"
                     }
-                },
-                "required": ["session_id"]
+                }
             }
         ),
         Tool(
@@ -458,13 +462,46 @@ async def handle_list_tools() -> list[Tool]:
                 "type": "object",
                 "properties": {}
             }
+        ),
+        Tool(
+            name="current_session",
+            description="Get the current refinement session status without needing the ID",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="abort_refinement",
+            description="Stop refinement and get the best result so far",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "session_id": {
+                        "type": "string",
+                        "description": "Optional: specific session (uses current if not provided)"
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="quick_refine",
+            description=(
+                "Start and auto-continue a refinement until complete. "
+                "Best for simple refinements that don't need step-by-step control."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "prompt": {"type": "string", "description": "The question to refine"},
+                    "max_wait": {"type": "number", "default": 30, "description": "Max seconds to wait"}
+                },
+                "required": ["prompt"]
+            }
         )
     ]
 
 @server.call_tool()
 async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
     """Handle tool calls"""
-    global refine_engine, incremental_engine
+    global refine_engine, incremental_engine, current_session_id, session_history
     
     # Incremental refinement tools
     if name == "start_refinement":
@@ -482,6 +519,19 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
             domain = arguments.get('domain', 'auto')
             
             result = await incremental_engine.start_refinement(prompt, domain)
+            
+            # Track current session for better UX
+            if result.get('success'):
+                current_session_id = result['session_id']
+                # Track in history
+                session_history.insert(0, {
+                    'session_id': result['session_id'],
+                    'prompt_preview': prompt[:50] + '...' if len(prompt) > 50 else prompt,
+                    'started_at': datetime.utcnow().isoformat()
+                })
+                if len(session_history) > 5:
+                    session_history = session_history[:5]  # Keep last 5
+            
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
             
         except Exception as e:
@@ -502,7 +552,14 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                     }, indent=2)
                 )]
             
-            session_id = arguments.get('session_id', '')
+            session_id = arguments.get('session_id', current_session_id)
+            
+            if not session_id:
+                return [TextContent(type="text", text=json.dumps({
+                    "success": False,
+                    "error": "No session_id provided and no current session",
+                    "suggestion": "Start a refinement with start_refinement first"
+                }, indent=2))]
             
             result = await incremental_engine.continue_refinement(session_id)
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
@@ -582,6 +639,116 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
             logger.error(f"List sessions error: {e}")
             return [TextContent(type="text", text=json.dumps({
                 "error": f"Failed to list sessions: {str(e)}",
+                "success": False
+            }, indent=2))]
+    
+    elif name == "current_session":
+        if not current_session_id:
+            # Try to find the most recent session
+            if incremental_engine:
+                sessions = incremental_engine.session_manager.list_active_sessions()
+                if sessions:
+                    recent = sessions[0]
+                    return [TextContent(type="text", text=json.dumps({
+                        "success": True,
+                        "message": "No current session set, showing most recent",
+                        "session": recent
+                    }, indent=2))]
+            return [TextContent(type="text", text=json.dumps({
+                "success": False,
+                "message": "No active sessions. Start one with start_refinement."
+            }, indent=2))]
+        
+        try:
+            result = await incremental_engine.get_status(current_session_id)
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+        except Exception as e:
+            return [TextContent(type="text", text=json.dumps({
+                "success": False,
+                "error": f"Failed to get current session: {str(e)}"
+            }, indent=2))]
+    
+    elif name == "abort_refinement":
+        try:
+            if not incremental_engine:
+                return [TextContent(type="text", text=json.dumps({
+                    "error": "Incremental engine not initialized",
+                    "success": False
+                }, indent=2))]
+            
+            session_id = arguments.get('session_id', current_session_id)
+            if not session_id:
+                return [TextContent(type="text", text=json.dumps({
+                    "success": False,
+                    "error": "No session specified and no current session active"
+                }, indent=2))]
+            
+            result = await incremental_engine.abort_refinement(session_id)
+            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+            
+        except Exception as e:
+            logger.error(f"Abort refinement error: {e}")
+            return [TextContent(type="text", text=json.dumps({
+                "error": f"Failed to abort refinement: {str(e)}",
+                "success": False
+            }, indent=2))]
+    
+    elif name == "quick_refine":
+        try:
+            if not incremental_engine:
+                return [TextContent(type="text", text=json.dumps({
+                    "error": "Incremental engine not initialized",
+                    "success": False
+                }, indent=2))]
+            
+            prompt = arguments.get('prompt', '')
+            max_wait = arguments.get('max_wait', 30)
+            
+            # Start refinement
+            start_result = await incremental_engine.start_refinement(prompt)
+            if not start_result.get('success'):
+                return [TextContent(type="text", text=json.dumps(start_result, indent=2))]
+            
+            session_id = start_result['session_id']
+            current_session_id = session_id
+            
+            # Auto-continue until done or timeout
+            start_time = time.time()
+            iterations = 0
+            last_preview = ""
+            
+            while (time.time() - start_time) < max_wait:
+                continue_result = await incremental_engine.continue_refinement(session_id)
+                iterations += 1
+                
+                if continue_result.get('preview'):
+                    last_preview = continue_result['preview']
+                
+                if continue_result.get('status') in ['completed', 'converged']:
+                    return [TextContent(type="text", text=json.dumps({
+                        "success": True,
+                        "final_answer": continue_result.get('final_answer', ''),
+                        "iterations": iterations,
+                        "time_taken": round(time.time() - start_time, 1),
+                        "convergence_score": continue_result.get('convergence_score', 0)
+                    }, indent=2))]
+                
+                await asyncio.sleep(0.1)  # Small delay between steps
+            
+            # Timeout - return best so far
+            final_result = await incremental_engine.get_final_result(session_id)
+            return [TextContent(type="text", text=json.dumps({
+                "success": True,
+                "status": "timeout",
+                "message": f"Stopped after {max_wait}s",
+                "final_answer": final_result.get('final_answer', last_preview),
+                "iterations": iterations
+            }, indent=2))]
+            
+        except Exception as e:
+            logger.error(f"Quick refine error: {e}")
+            return [TextContent(type="text", text=json.dumps({
+                "error": f"Failed to quick refine: {str(e)}",
                 "success": False
             }, indent=2))]
     
