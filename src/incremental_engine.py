@@ -5,6 +5,7 @@ Implements incremental refinement to avoid timeouts and show progress
 
 import asyncio
 import json
+import os
 import time
 import uuid
 from typing import Dict, Optional, Any
@@ -311,30 +312,51 @@ class IncrementalRefineEngine:
         }
     
     async def _do_critique_step(self, session: RefinementSession) -> Dict[str, Any]:
-        """Generate critiques"""
-        critique_prompts = [
-            f"Critically analyze this response for accuracy and completeness:\n\nOriginal question: {session.prompt}\n\nResponse: {session.current_draft}\n\nProvide specific improvements.",
-            f"Evaluate this response for clarity and structure:\n\nOriginal question: {session.prompt}\n\nResponse: {session.current_draft}\n\nSuggest how to make it clearer."
-        ]
+        """Generate critiques using tool-based approach"""
         
-        # Generate critiques in parallel
-        # Use Haiku for faster critiques if available
-        import os
-        critique_model = os.getenv("CRITIQUE_MODEL_ID", os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-sonnet-20240229-v1:0"))
+        # Use the new tool-based refinement
+        result = await self.bedrock.refine_with_tools(
+            prompt=session.current_draft,
+            system_prompt=f"Original question: {session.prompt}",
+            phase="critique"
+        )
         
-        critique_tasks = [
-            self.bedrock.generate_text(prompt, temperature=0.8, model_override=critique_model)
-            for prompt in critique_prompts[:2]  # Use 2 for speed
-        ]
+        # Process tool calls to create structured critiques
+        critiques = []
         
-        critiques = await asyncio.gather(*critique_tasks, return_exceptions=True)
-        valid_critiques = [c for c in critiques if isinstance(c, str)]
+        # Extract critiques from tool calls
+        for tool_call in result.get('tool_calls', []):
+            if tool_call['name'] == 'identify_weakness':
+                weakness_type = tool_call['input'].get('weakness_type', 'general')
+                text_segment = tool_call['input'].get('text_segment', '')
+                critique = f"Weakness in {weakness_type}: {text_segment[:100]}..."
+                critiques.append(critique)
+        
+        # Add the overall analysis text if available
+        if result.get('text'):
+            critiques.append(result['text'])
+        
+        # Ensure we have at least one critique
+        if not critiques:
+            # Fallback to traditional critique
+            critique_model = os.getenv("CRITIQUE_MODEL_ID", os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-sonnet-20240229-v1:0"))
+            critique = await self.bedrock.generate_text(
+                f"Critically analyze this response:\n\nOriginal question: {session.prompt}\n\nResponse: {session.current_draft}",
+                temperature=0.8,
+                model_override=critique_model
+            )
+            critiques = [critique]
         
         # Update session
         self.session_manager.update_session(
             session.session_id,
-            critiques=valid_critiques,
-            status=RefinementStatus.REVISING
+            critiques=critiques,
+            status=RefinementStatus.REVISING,
+            metadata={
+                **session.metadata,
+                "tool_calls": result.get('tool_calls', []),
+                "analysis": result.get('analysis', {})
+            }
         )
         
         return {
@@ -342,16 +364,17 @@ class IncrementalRefineEngine:
             "status": "critiques_complete",
             "iteration": session.current_iteration,
             "progress": self._format_progress(session),
-            "message": f"{self._get_status_emoji(RefinementStatus.CRITIQUING)} Generated {len(valid_critiques)} critiques. Ready to revise.",
-            "critique_count": len(valid_critiques),
-            "critique_preview": valid_critiques[0][:100] + "..." if valid_critiques else None,
+            "message": f"{self._get_status_emoji(RefinementStatus.CRITIQUING)} Generated {len(critiques)} critiques. Ready to revise.",
+            "critique_count": len(critiques),
+            "critique_preview": critiques[0][:100] + "..." if critiques else None,
+            "tool_calls": len(result.get('tool_calls', [])),
             "next_action": "continue_refinement",
             "continue_needed": True,
             "_ai_performance": {
-                "critique_model": critique_model,
-                "parallel_critiques": len(critique_prompts),
-                "tip": "Using Claude Haiku for critiques can reduce iteration time by ~50%",
-                "recommendation": "Set CRITIQUE_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0 in .env"
+                "critique_model": "converse API with tools",
+                "tools_used": [tc['name'] for tc in result.get('tool_calls', [])],
+                "tip": "Tool-based critiques provide more structured analysis",
+                "recommendation": "The model uses identify_weakness tool to find specific issues"
             }
         }
 

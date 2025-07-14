@@ -192,7 +192,7 @@ class DomainDetector:
         return max(domain_scores, key=domain_scores.get)
 
 class BedrockClient:
-    """Wrapper for AWS Bedrock operations"""
+    """Wrapper for AWS Bedrock operations using Converse API with refinement tools"""
     
     def __init__(self):
         self.bedrock_runtime = boto3.client(
@@ -200,39 +200,231 @@ class BedrockClient:
             region_name=AWS_REGION
         )
         self._embedding_cache = {}
+        self._refinement_tools = self._get_refinement_tools()
         
-    async def generate_text(self, prompt: str, system_prompt: str = "", temperature: float = 0.7, model_override: str = None) -> str:
-        """Generate text using Claude via Bedrock"""
+    def _get_refinement_tools(self):
+        """Define refinement tools for the converse API"""
+        return [
+            {
+                "toolSpec": {
+                    "name": "identify_weakness",
+                    "description": "Analyze text and identify a specific weakness or area for improvement",
+                    "inputSchema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {
+                                "text_segment": {
+                                    "type": "string",
+                                    "description": "The portion of text to analyze"
+                                },
+                                "weakness_type": {
+                                    "type": "string",
+                                    "enum": ["clarity", "accuracy", "completeness", "coherence", "depth"],
+                                    "description": "Type of weakness to look for"
+                                }
+                            },
+                            "required": ["text_segment", "weakness_type"]
+                        }
+                    }
+                }
+            },
+            {
+                "toolSpec": {
+                    "name": "propose_revision",
+                    "description": "Suggest a specific revision for identified weakness",
+                    "inputSchema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {
+                                "original_text": {
+                                    "type": "string",
+                                    "description": "Text to revise"
+                                },
+                                "weakness_identified": {
+                                    "type": "string",
+                                    "description": "The specific issue found"
+                                },
+                                "revision_approach": {
+                                    "type": "string",
+                                    "enum": ["expand", "clarify", "restructure", "support", "simplify"],
+                                    "description": "How to approach the revision"
+                                }
+                            },
+                            "required": ["original_text", "weakness_identified", "revision_approach"]
+                        }
+                    }
+                }
+            },
+            {
+                "toolSpec": {
+                    "name": "measure_improvement",
+                    "description": "Compare two versions and quantify improvement",
+                    "inputSchema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {
+                                "version_a": {
+                                    "type": "string",
+                                    "description": "Original text"
+                                },
+                                "version_b": {
+                                    "type": "string",
+                                    "description": "Revised text"
+                                },
+                                "criteria": {
+                                    "type": "string",
+                                    "description": "The aspect being measured"
+                                }
+                            },
+                            "required": ["version_a", "version_b", "criteria"]
+                        }
+                    }
+                }
+            },
+            {
+                "toolSpec": {
+                    "name": "check_convergence",
+                    "description": "Determine if further refinement would add value",
+                    "inputSchema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {
+                                "current_quality": {
+                                    "type": "number",
+                                    "description": "Current text quality score (0-1)"
+                                },
+                                "improvement_delta": {
+                                    "type": "number",
+                                    "description": "Recent improvement amount"
+                                },
+                                "iteration_count": {
+                                    "type": "integer",
+                                    "description": "Number of iterations completed"
+                                }
+                            },
+                            "required": ["current_quality", "improvement_delta", "iteration_count"]
+                        }
+                    }
+                }
+            }
+        ]
+        
+    async def generate_text(self, prompt: str, system_prompt: str = "", temperature: float = 0.7, model_override: str = None, use_tools: bool = False) -> str:
+        """Generate text using Claude via Bedrock Converse API"""
         try:
             model = model_override or CLAUDE_MODEL
-            body = {
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 4096,
-                "temperature": temperature,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
+            
+            # Build messages for converse API
+            messages = [
+                {
+                    "role": "user",
+                    "content": [{"text": prompt}]
+                }
+            ]
+            
+            # Build the converse request
+            converse_params = {
+                "modelId": model,
+                "messages": messages,
+                "inferenceConfig": {
+                    "temperature": temperature,
+                    "maxTokens": 4096
+                }
             }
             
             if system_prompt:
-                body["system"] = system_prompt
+                converse_params["system"] = [{"text": system_prompt}]
+                
+            if use_tools:
+                converse_params["toolConfig"] = {
+                    "tools": self._refinement_tools
+                }
                 
             response = await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: self.bedrock_runtime.invoke_model(
-                    modelId=model,
-                    body=json.dumps(body)
-                )
+                lambda: self.bedrock_runtime.converse(**converse_params)
             )
             
-            response_body = json.loads(response['body'].read())
-            return response_body['content'][0]['text']
+            # Extract text from response
+            return response['output']['message']['content'][0]['text']
             
         except Exception as e:
             logger.error(f"Bedrock generation error: {e}")
+            raise
+    
+    async def refine_with_tools(self, prompt: str, system_prompt: str = "", phase: str = "critique") -> dict:
+        """Execute refinement using converse API with tools"""
+        try:
+            model = CLAUDE_MODEL
+            
+            # Adjust prompt based on phase
+            phase_prompts = {
+                "critique": f"Analyze this text using the identify_weakness tool to find areas for improvement:\n\n{prompt}",
+                "revise": f"Use the propose_revision tool to suggest improvements for this text:\n\n{prompt}",
+                "converge": f"Use the check_convergence tool to determine if this text needs more refinement:\n\n{prompt}"
+            }
+            
+            adjusted_prompt = phase_prompts.get(phase, prompt)
+            
+            messages = [
+                {
+                    "role": "user",
+                    "content": [{"text": adjusted_prompt}]
+                }
+            ]
+            
+            converse_params = {
+                "modelId": model,
+                "messages": messages,
+                "inferenceConfig": {
+                    "temperature": 0.3,  # Lower temp for more focused analysis
+                    "maxTokens": 4096
+                },
+                "toolConfig": {
+                    "tools": self._refinement_tools,
+                    "toolChoice": {"auto": {}}  # Let model decide which tools to use
+                }
+            }
+            
+            if system_prompt:
+                converse_params["system"] = [{"text": system_prompt}]
+                
+            response = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: self.bedrock_runtime.converse(**converse_params)
+            )
+            
+            # Parse response with tool calls
+            result = {
+                "text": "",
+                "tool_calls": [],
+                "analysis": {}
+            }
+            
+            message = response['output']['message']
+            
+            # Extract text content
+            for content_block in message['content']:
+                if 'text' in content_block:
+                    result['text'] += content_block['text']
+                elif 'toolUse' in content_block:
+                    tool_use = content_block['toolUse']
+                    result['tool_calls'].append({
+                        "name": tool_use['name'],
+                        "input": tool_use['input']
+                    })
+                    
+                    # Parse specific tool outputs for analysis
+                    if tool_use['name'] == 'identify_weakness':
+                        result['analysis']['weakness_type'] = tool_use['input'].get('weakness_type')
+                        result['analysis']['text_segment'] = tool_use['input'].get('text_segment')
+                    elif tool_use['name'] == 'check_convergence':
+                        result['analysis']['convergence_ready'] = tool_use['input'].get('current_quality', 0) > 0.9
+                        
+            return result
+            
+        except Exception as e:
+            logger.error(f"Tool-based refinement error: {e}")
             raise
 
     @lru_cache(maxsize=1000)
