@@ -21,6 +21,26 @@ The refinement process follows a **Draft → Critique → Revise → Converge** 
 3. **Revise**: Synthesize critiques into improved version
 4. **Converge**: Measure similarity and repeat until threshold reached
 
+## Tool-Based Refinement (NEW)
+
+The latest version supports **structured refinement using the AWS Bedrock Converse API** with custom tools:
+
+### Refinement Tools
+
+1. **identify_weakness**: Analyzes text for specific weaknesses (clarity, accuracy, completeness, coherence, depth)
+2. **propose_revision**: Suggests targeted improvements for identified issues
+3. **measure_improvement**: Compares versions to quantify progress
+4. **check_convergence**: Determines if further refinement would add value
+
+### Benefits
+
+- **Structured Reasoning**: Tool calls make the refinement logic explicit and trackable
+- **Better Convergence Detection**: Combines traditional cosine similarity with tool-based assessment
+- **Detailed Insights**: Each tool call provides specific feedback about what needs improvement
+- **Future-Proof**: Ready for advanced model features like exposed reasoning traces
+
+The tool-based approach is automatically used when available, with fallback to traditional methods for compatibility.
+
 ## Installation
 
 ### Prerequisites
