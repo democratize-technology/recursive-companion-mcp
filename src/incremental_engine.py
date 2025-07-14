@@ -146,7 +146,15 @@ class IncrementalRefineEngine:
         if not is_valid:
             return {
                 "success": False,
-                "error": f"Invalid prompt: {validation_msg}"
+                "error": f"Invalid prompt: {validation_msg}",
+                "_ai_context": {
+                    "validation_rule": validation_msg,
+                    "prompt_length": len(prompt) if prompt else 0,
+                    "min_length": 10,  # From validator
+                    "max_length": 10000  # From validator
+                },
+                "_ai_suggestion": "Ensure prompt is between 10 and 10,000 characters",
+                "_human_action": "Provide a more detailed prompt"
             }
         
         # Auto-detect domain if needed
@@ -176,9 +184,19 @@ class IncrementalRefineEngine:
         """Continue refinement for one iteration - returns quickly"""
         session = self.session_manager.get_session(session_id)
         if not session:
+            # Get active sessions for context
+            active_sessions = self.session_manager.list_active_sessions()
             return {
                 "success": False,
-                "error": "Session not found"
+                "error": "Session not found",
+                "_ai_context": {
+                    "requested_session": session_id,
+                    "active_session_count": len(active_sessions),
+                    "available_sessions": active_sessions[:3] if active_sessions else []
+                },
+                "_ai_suggestion": "Check list_refinement_sessions for valid session IDs",
+                "_ai_recovery": "Start a new session with start_refinement",
+                "_human_action": "Use a valid session ID or start a new refinement"
             }
         
         try:
@@ -438,9 +456,16 @@ Create an improved response that addresses these critiques while maintaining acc
         """Get current status of a refinement session"""
         session = self.session_manager.get_session(session_id)
         if not session:
+            active_sessions = self.session_manager.list_active_sessions()
             return {
                 "success": False,
-                "error": "Session not found"
+                "error": "Session not found",
+                "_ai_context": {
+                    "requested_session": session_id,
+                    "active_sessions": active_sessions[:3] if active_sessions else []
+                },
+                "_ai_suggestion": "Use list_refinement_sessions to see valid sessions",
+                "_human_action": "Check session ID or start a new refinement"
             }
         
         return {
@@ -455,15 +480,30 @@ Create an improved response that addresses these critiques while maintaining acc
         """Get the final refined result"""
         session = self.session_manager.get_session(session_id)
         if not session:
+            active_sessions = self.session_manager.list_active_sessions()
             return {
                 "success": False,
-                "error": "Session not found"
+                "error": "Session not found",
+                "_ai_context": {
+                    "requested_session": session_id,
+                    "active_sessions": active_sessions[:3] if active_sessions else []
+                },
+                "_ai_suggestion": "Use list_refinement_sessions to find your session",
+                "_human_action": "Verify session ID or check if session has expired"
             }
         
         if session.status != RefinementStatus.CONVERGED:
             return {
                 "success": False,
-                "error": f"Refinement not complete. Current status: {session.status.value}"
+                "error": f"Refinement not complete. Current status: {session.status.value}",
+                "_ai_context": {
+                    "current_status": session.status.value,
+                    "current_iteration": session.current_iteration,
+                    "convergence_score": session.convergence_score
+                },
+                "_ai_suggestion": "Use continue_refinement to proceed" if session.status != RefinementStatus.ERROR else "Session has an error, start a new one",
+                "_ai_tip": f"Currently at iteration {session.current_iteration}, convergence at {session.convergence_score:.1%}",
+                "_human_action": "Continue the refinement process or use abort_refinement to get current best result"
             }
         
         return {
@@ -483,7 +523,17 @@ Create an improved response that addresses these critiques while maintaining acc
         """Stop refinement and return best result so far"""
         session = self.session_manager.get_session(session_id)
         if not session:
-            return {"success": False, "error": "Session not found"}
+            active_sessions = self.session_manager.list_active_sessions()
+            return {
+                "success": False, 
+                "error": "Session not found",
+                "_ai_context": {
+                    "requested_session": session_id,
+                    "active_sessions": active_sessions[:3] if active_sessions else []
+                },
+                "_ai_suggestion": "Can't abort a non-existent session",
+                "_human_action": "Use list_refinement_sessions to find valid sessions"
+            }
         
         # Mark as converged
         self.session_manager.update_session(
