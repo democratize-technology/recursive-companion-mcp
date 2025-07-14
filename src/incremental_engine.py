@@ -22,6 +22,7 @@ class RefinementStatus(Enum):
     CONVERGED = "converged"
     ERROR = "error"
     TIMEOUT = "timeout"
+    ABORTED = "aborted"
 
 
 @dataclass
@@ -214,7 +215,7 @@ class IncrementalRefineEngine:
             if session.current_iteration >= session.max_iterations:
                 self.session_manager.update_session(
                     session_id,
-                    status=RefinementStatus.CONVERGED
+                    status=RefinementStatus.TIMEOUT
                 )
                 return {
                     "success": True,
@@ -473,7 +474,7 @@ Create an improved response that addresses these critiques while maintaining acc
             "session": session.to_dict(),
             "progress": self._format_progress(session),
             "message": f"{self._get_status_emoji(session.status)} {self._get_action_description(session.status)}",
-            "continue_needed": session.status not in [RefinementStatus.CONVERGED, RefinementStatus.ERROR]
+            "continue_needed": session.status not in [RefinementStatus.CONVERGED, RefinementStatus.ERROR, RefinementStatus.ABORTED, RefinementStatus.TIMEOUT]
         }
     
     async def get_final_result(self, session_id: str) -> Dict[str, Any]:
@@ -492,16 +493,17 @@ Create an improved response that addresses these critiques while maintaining acc
                 "_human_action": "Verify session ID or check if session has expired"
             }
         
-        if session.status != RefinementStatus.CONVERGED:
+        if session.status not in [RefinementStatus.CONVERGED, RefinementStatus.ABORTED]:
             return {
                 "success": False,
                 "error": f"Refinement not complete. Current status: {session.status.value}",
                 "_ai_context": {
                     "current_status": session.status.value,
                     "current_iteration": session.current_iteration,
-                    "convergence_score": session.convergence_score
+                    "convergence_score": session.convergence_score,
+                    "was_aborted": session.status == RefinementStatus.ABORTED
                 },
-                "_ai_suggestion": "Use continue_refinement to proceed" if session.status != RefinementStatus.ERROR else "Session has an error, start a new one",
+                "_ai_suggestion": "Use continue_refinement to proceed" if session.status not in [RefinementStatus.ERROR, RefinementStatus.TIMEOUT] else "Session ended, start a new one",
                 "_ai_tip": f"Currently at iteration {session.current_iteration}, convergence at {session.convergence_score:.1%}",
                 "_human_action": "Continue the refinement process or use abort_refinement to get current best result"
             }
@@ -514,7 +516,9 @@ Create an improved response that addresses these critiques while maintaining acc
                 "total_iterations": session.current_iteration,
                 "convergence_score": session.convergence_score,
                 "session_id": session.session_id,
-                "duration_seconds": (session.updated_at - session.created_at).total_seconds()
+                "duration_seconds": (session.updated_at - session.created_at).total_seconds(),
+                "final_status": session.status.value,
+                "was_aborted": session.status == RefinementStatus.ABORTED
             },
             "thinking_history": session.iterations_history
         }
@@ -535,10 +539,10 @@ Create an improved response that addresses these critiques while maintaining acc
                 "_human_action": "Use list_refinement_sessions to find valid sessions"
             }
         
-        # Mark as converged
+        # Mark as aborted
         self.session_manager.update_session(
             session_id,
-            status=RefinementStatus.CONVERGED
+            status=RefinementStatus.ABORTED
         )
         
         return {
@@ -578,7 +582,10 @@ Create an improved response that addresses these critiques while maintaining acc
             RefinementStatus.DRAFTING: "Creating initial response",
             RefinementStatus.CRITIQUING: "Analyzing for improvements",
             RefinementStatus.REVISING: "Incorporating feedback",
-            RefinementStatus.CONVERGED: "Refinement complete!"
+            RefinementStatus.CONVERGED: "Refinement complete!",
+            RefinementStatus.ABORTED: "Refinement stopped by user",
+            RefinementStatus.TIMEOUT: "Refinement timed out",
+            RefinementStatus.ERROR: "Refinement encountered an error"
         }
         return descriptions.get(status, "Processing")
     
@@ -589,7 +596,9 @@ Create an improved response that addresses these critiques while maintaining acc
             RefinementStatus.CRITIQUING: "🔍",
             RefinementStatus.REVISING: "✨",
             RefinementStatus.CONVERGED: "✅",
-            RefinementStatus.ERROR: "❌"
+            RefinementStatus.ERROR: "❌",
+            RefinementStatus.ABORTED: "🛑",
+            RefinementStatus.TIMEOUT: "⏱️"
         }
         return emojis.get(status, "⏳")
     
