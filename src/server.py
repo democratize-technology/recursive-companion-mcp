@@ -790,8 +790,10 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 continue_result = await incremental_engine.continue_refinement(session_id)
                 iterations += 1
                 
-                if continue_result.get('preview'):
-                    last_preview = continue_result['preview']
+                # Track the latest draft preview
+                if continue_result.get('draft_preview'):
+                    last_preview = continue_result['draft_preview']
+                    logger.debug(f"Quick refine iteration {iterations}: preview length {len(last_preview)}")
                 
                 if continue_result.get('status') in ['completed', 'converged']:
                     return [TextContent(type="text", text=json.dumps({
@@ -804,14 +806,16 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 
                 await asyncio.sleep(0.1)  # Small delay between steps
             
-            # Timeout - return best so far
-            final_result = await incremental_engine.get_final_result(session_id)
+            # Timeout - abort and return best so far
+            abort_result = await incremental_engine.abort_refinement(session_id)
             return [TextContent(type="text", text=json.dumps({
                 "success": True,
                 "status": "timeout",
                 "message": f"Stopped after {max_wait}s",
-                "final_answer": final_result.get('final_answer', last_preview),
-                "iterations": iterations
+                "final_answer": abort_result.get('final_answer', last_preview),
+                "iterations": iterations,
+                "_ai_note": "Refinement was progressing but hit time limit",
+                "_ai_suggestion": "Increase max_wait for more complete results"
             }, indent=2))]
             
         except Exception as e:
