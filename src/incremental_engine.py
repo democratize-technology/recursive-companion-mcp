@@ -204,7 +204,13 @@ class IncrementalRefineEngine:
                     "message": "Maximum iterations reached",
                     "final_answer": session.current_draft,
                     "convergence_score": session.convergence_score,
-                    "total_iterations": session.current_iteration
+                    "total_iterations": session.current_iteration,
+                    "_ai_note": "Max iterations reached but convergence not achieved",
+                    "_ai_suggestion": "Consider higher max_iterations or lower convergence_threshold",
+                    "_ai_context": {
+                        "convergence_gap": session.convergence_threshold - session.convergence_score,
+                        "likely_iterations_needed": 2 if session.convergence_score > 0.9 else 3
+                    }
                 }
             
             # Perform one step based on current status
@@ -225,11 +231,27 @@ class IncrementalRefineEngine:
                 status=RefinementStatus.ERROR,
                 error_message=str(e)
             )
-            return {
+            
+            # Provide AI-helpful error context
+            error_response = {
                 "success": False,
                 "error": f"Refinement error: {str(e)}",
-                "status": "error"
+                "status": "error",
+                "_ai_context": {
+                    "session_status": session.status.value if session else "unknown",
+                    "iteration": session.current_iteration if session else 0,
+                    "error_type": type(e).__name__
+                }
             }
+            
+            # Add specific hints based on error type
+            if "timeout" in str(e).lower():
+                error_response["_ai_suggestion"] = "Use quick_refine with longer max_wait for this prompt"
+            elif "embedding" in str(e).lower():
+                error_response["_ai_diagnosis"] = "Embedding model issue - check AWS Bedrock access"
+                error_response["_ai_action"] = "Verify Titan embedding model is enabled in your region"
+            
+            return error_response
 
     
     async def _do_draft_step(self, session: RefinementSession) -> Dict[str, Any]:
@@ -262,7 +284,11 @@ class IncrementalRefineEngine:
             "message": f"{self._get_status_emoji(RefinementStatus.DRAFTING)} Initial draft generated. Ready for critiques.",
             "draft_preview": draft[:300] + "..." if len(draft) > 300 else draft,
             "next_action": "continue_refinement",
-            "continue_needed": True
+            "continue_needed": True,
+            "_ai_performance": {
+                "draft_generation_model": self._get_model_name(),
+                "tip": "First iteration is always the slowest - subsequent ones are faster"
+            }
         }
     
     async def _do_critique_step(self, session: RefinementSession) -> Dict[str, Any]:
@@ -301,7 +327,13 @@ class IncrementalRefineEngine:
             "critique_count": len(valid_critiques),
             "critique_preview": valid_critiques[0][:100] + "..." if valid_critiques else None,
             "next_action": "continue_refinement",
-            "continue_needed": True
+            "continue_needed": True,
+            "_ai_performance": {
+                "critique_model": critique_model,
+                "parallel_critiques": len(critique_prompts),
+                "tip": "Using Claude Haiku for critiques can reduce iteration time by ~50%",
+                "recommendation": "Set CRITIQUE_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0 in .env"
+            }
         }
 
     
@@ -360,7 +392,13 @@ Create an improved response that addresses these critiques while maintaining acc
                 "final_answer": revision,
                 "convergence_score": round(convergence_score, 4),
                 "total_iterations": session.current_iteration,
-                "continue_needed": False
+                "continue_needed": False,
+                "_ai_insight": {
+                    "convergence_threshold": session.convergence_threshold,
+                    "final_score": round(convergence_score, 4),
+                    "quality_note": "Higher convergence = more polished but potentially less creative",
+                    "typical_range": "0.92-0.96 is usually optimal for most use cases"
+                }
             }
         else:
             # Continue refining
@@ -369,7 +407,20 @@ Create an improved response that addresses these critiques while maintaining acc
                 status=RefinementStatus.CRITIQUING
             )
             
-            return {
+            # Prepare AI insights based on convergence
+            ai_prediction = {}
+            if convergence_score > 0.9:
+                ai_prediction = {
+                    "_ai_prediction": "Likely to converge in 1-2 more iterations",
+                    "_ai_suggestion": "Consider abort_refinement if current quality is sufficient"
+                }
+            elif convergence_score > 0.8:
+                ai_prediction = {
+                    "_ai_prediction": "Making good progress, 2-3 iterations likely needed",
+                    "_ai_pattern": "Typical convergence acceleration happens around 0.85"
+                }
+            
+            response = {
                 "success": True,
                 "status": "revision_complete",
                 "iteration": session.current_iteration,
@@ -380,6 +431,8 @@ Create an improved response that addresses these critiques while maintaining acc
                 "next_action": "continue_refinement",
                 "continue_needed": True
             }
+            response.update(ai_prediction)
+            return response
     
     async def get_status(self, session_id: str) -> Dict[str, Any]:
         """Get current status of a refinement session"""
@@ -489,6 +542,11 @@ Create an improved response that addresses these critiques while maintaining acc
             RefinementStatus.ERROR: "❌"
         }
         return emojis.get(status, "⏳")
+    
+    def _get_model_name(self) -> str:
+        """Get current model name for performance hints"""
+        import os
+        return os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-sonnet-20240229-v1:0")
     
     def _cosine_similarity(self, vec1: list, vec2: list) -> float:
         """Calculate cosine similarity between two vectors"""

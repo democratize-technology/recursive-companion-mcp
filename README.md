@@ -9,6 +9,8 @@ An MCP (Model Context Protocol) server that implements iterative refinement thro
 - **Domain-Specific Optimization**: Auto-detects and optimizes for technical, marketing, strategy, legal, and financial domains
 - **Progress Visibility**: Each step returns immediately, allowing UI updates
 - **Parallel Sessions**: Support for multiple concurrent refinement sessions
+- **Auto Session Tracking**: No manual session ID management needed
+- **AI-Friendly Error Handling**: Actionable diagnostics and recovery hints for AI assistants
 
 ## How It Works
 
@@ -107,6 +109,30 @@ With optimized settings:
 - Total time: 2-4 minutes (distributed across multiple calls)
 
 Using Haiku for critiques reduces iteration time by ~50%.
+
+## AI-Friendly Features
+
+This tool includes special features for AI assistants using it:
+
+- **Auto Session Tracking**: The `current_session_id` is automatically maintained
+- **Smart Error Messages**: Errors include `_ai_` prefixed fields with actionable diagnostics
+- **Performance Hints**: Responses include optimization tips and predictions
+- **Progress Predictions**: Convergence tracking includes estimates of remaining iterations
+
+Example AI-helpful error response:
+```json
+{
+  "success": false,
+  "error": "No session_id provided and no current session",
+  "_ai_context": {
+    "current_session_id": null,
+    "active_session_count": 2,
+    "recent_sessions": [...]
+  },
+  "_ai_suggestion": "Use start_refinement to create a new session",
+  "_human_action": "Start a new refinement session first"
+}
+```
 
 ## Architecture
 

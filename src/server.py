@@ -52,6 +52,68 @@ REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "300"))  # 5 minutes
 current_session_id = None
 session_history = []  # Track last 5 sessions
 
+def create_ai_error_response(error: Exception, context: str) -> dict:
+    """Create error response with AI-actionable hints"""
+    error_type = type(error).__name__
+    error_msg = str(error)
+    
+    # Common error patterns with AI-helpful diagnostics
+    response = {
+        "success": False,
+        "error": error_msg,
+        "error_type": error_type,
+        "context": context
+    }
+    
+    # AWS credential errors
+    if "credentials" in error_msg.lower() or "aws" in error_msg.lower():
+        response.update({
+            "_ai_diagnosis": "AWS credentials issue detected",
+            "_ai_actions": [
+                "Check if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set",
+                f"Verify AWS_REGION is correct (current: {AWS_REGION})",
+                "Test with: aws sts get-caller-identity"
+            ],
+            "_human_action": "Run 'aws configure' to set up AWS credentials"
+        })
+    # Bedrock model errors
+    elif "ResourceNotFoundException" in error_msg or "model" in error_msg.lower():
+        response.update({
+            "_ai_diagnosis": "AWS Bedrock model not available",
+            "_ai_context": {
+                "current_region": AWS_REGION,
+                "requested_model": CLAUDE_MODEL,
+                "critique_model": CRITIQUE_MODEL
+            },
+            "_ai_suggestion": "Try us-east-1 or us-west-2 regions",
+            "_human_action": "Change AWS_REGION in .env or enable model in AWS console"
+        })
+    # Timeout errors
+    elif error_type == "TimeoutError":
+        response.update({
+            "_ai_diagnosis": "Operation exceeded timeout",
+            "_ai_suggestion": "For long refinements, use quick_refine with higher max_wait",
+            "_ai_alternative": "Or use start_refinement + continue_refinement for control",
+            "_human_action": "Try quick_refine with max_wait=60"
+        })
+    # Session errors
+    elif "session" in error_msg.lower() or error_type == "KeyError":
+        response.update({
+            "_ai_diagnosis": "Session not found or invalid",
+            "_ai_suggestion": "Check active sessions with list_refinement_sessions",
+            "_ai_recovery": "Start fresh with start_refinement",
+            "_human_action": "Verify session ID or start a new session"
+        })
+    else:
+        # Generic helpful hints
+        response.update({
+            "_ai_diagnosis": f"Unexpected error in {context}",
+            "_ai_suggestion": "Check server logs for details",
+            "_ai_context": {"error_type": error_type}
+        })
+    
+    return response
+
 # Domain configurations
 DOMAIN_KEYWORDS = {
     "technical": ["code", "algorithm", "api", "debug", "performance", "architecture", "system", "database", "security"],
@@ -536,10 +598,9 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
             
         except Exception as e:
             logger.error(f"Start refinement error: {e}")
-            return [TextContent(type="text", text=json.dumps({
-                "error": f"Failed to start refinement: {str(e)}",
-                "success": False
-            }, indent=2))]
+            error_response = create_ai_error_response(e, "start_refinement")
+            error_response["_ai_hint"] = "This is usually a validation or AWS connection issue"
+            return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
     
     elif name == "continue_refinement":
         try:
@@ -555,10 +616,18 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
             session_id = arguments.get('session_id', current_session_id)
             
             if not session_id:
+                active_sessions = incremental_engine.session_manager.list_active_sessions() if incremental_engine else []
                 return [TextContent(type="text", text=json.dumps({
                     "success": False,
                     "error": "No session_id provided and no current session",
-                    "suggestion": "Start a refinement with start_refinement first"
+                    "_ai_context": {
+                        "current_session_id": current_session_id,
+                        "active_session_count": len(active_sessions),
+                        "recent_sessions": active_sessions[:2] if active_sessions else []
+                    },
+                    "_ai_suggestion": "Use start_refinement to create a new session",
+                    "_ai_tip": "After start_refinement, continue_refinement will auto-track the session",
+                    "_human_action": "Start a new refinement session first"
                 }, indent=2))]
             
             result = await incremental_engine.continue_refinement(session_id)
