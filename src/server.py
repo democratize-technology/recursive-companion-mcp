@@ -10,10 +10,10 @@ import logging
 import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
-from functools import lru_cache
 import hashlib
 
 import boto3
@@ -189,14 +189,61 @@ class BedrockClient:
     """Wrapper for AWS Bedrock operations"""
     
     def __init__(self):
-        self.bedrock_runtime = boto3.client(
-            service_name='bedrock-runtime',
-            region_name=AWS_REGION
-        )
+        try:
+            # Validate AWS credentials are available
+            session = boto3.Session(region_name=AWS_REGION)
+            credentials = session.get_credentials()
+            
+            if not credentials:
+                raise ValueError("No AWS credentials found. Please configure AWS credentials.")
+            
+            # Verify credentials are not expired
+            frozen_credentials = credentials.get_frozen_credentials()
+            if not frozen_credentials.access_key:
+                raise ValueError("AWS access key not found in credentials")
+                
+            # Create the Bedrock runtime client
+            self.bedrock_runtime = boto3.client(
+                service_name='bedrock-runtime',
+                region_name=AWS_REGION
+            )
+            
+            # Test the connection with a simple API call
+            self._test_connection()
+            
+            logger.info(f"AWS Bedrock client initialized successfully in region {AWS_REGION}")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize AWS Bedrock client: {e}")
+            raise ValueError(f"AWS Bedrock initialization failed: {str(e)}")
+            
         self._embedding_cache = {}
+        # Create a thread pool for async operations
+        self._executor = ThreadPoolExecutor(max_workers=4)
+    
+    def _test_connection(self):
+        """Test AWS Bedrock connection by listing models"""
+        try:
+            # Create a bedrock client (not bedrock-runtime) for testing
+            bedrock = boto3.client(
+                service_name='bedrock',
+                region_name=AWS_REGION
+            )
+            # Just test that we can make an API call
+            bedrock.list_foundation_models(byProvider='Anthropic', maxResults=1)
+        except Exception as e:
+            logger.warning(f"Could not verify Bedrock access: {e}")
         
+    def _invoke_model_sync(self, model: str, body: dict) -> dict:
+        """Synchronous model invocation for thread pool executor"""
+        response = self.bedrock_runtime.invoke_model(
+            modelId=model,
+            body=json.dumps(body)
+        )
+        return response
+    
     async def generate_text(self, prompt: str, system_prompt: str = "", temperature: float = 0.7, model_override: str = None) -> str:
-        """Generate text using Claude via Bedrock"""
+        """Generate text using Claude via Bedrock with optimized async handling"""
         try:
             model = model_override or CLAUDE_MODEL
             body = {
@@ -213,27 +260,26 @@ class BedrockClient:
             
             if system_prompt:
                 body["system"] = system_prompt
-                
-            response = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: self.bedrock_runtime.invoke_model(
-                    modelId=model,
-                    body=json.dumps(body)
-                )
+            
+            # Use the dedicated thread pool executor for better performance
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                self._executor,
+                self._invoke_model_sync,
+                model,
+                body
             )
             
             response_body = json.loads(response['body'].read())
             return response_body['content'][0]['text']
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON response from Bedrock: {e}")
+            raise ValueError("Invalid response format from Bedrock model")
             
         except Exception as e:
             logger.error(f"Bedrock generation error: {e}")
             raise
 
-    @lru_cache(maxsize=1000)
-    def _get_embedding_cached(self, text_hash: str) -> List[float]:
-        """Cache wrapper for embeddings"""
-        return self._get_embedding_uncached(text_hash)
-        
     def _get_embedding_uncached(self, text: str) -> List[float]:
         """Get text embedding using Titan"""
         try:
@@ -243,21 +289,46 @@ class BedrockClient:
             )
             response_body = json.loads(response['body'].read())
             return response_body['embedding']
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON response from Bedrock: {e}")
+            raise ValueError("Invalid response format from Bedrock embedding model")
         except Exception as e:
             logger.error(f"Embedding generation error: {e}")
             raise
             
     async def get_embedding(self, text: str) -> List[float]:
-        """Get text embedding with caching"""
+        """Get text embedding with proper caching and optimized async handling"""
         # Create hash for caching
         text_hash = hashlib.sha256(text.encode()).hexdigest()[:16]
         
-        return await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: self._get_embedding_cached(text_hash) 
-            if text_hash in self._embedding_cache 
-            else self._get_embedding_uncached(text)
+        # Check cache first
+        if text_hash in self._embedding_cache:
+            return self._embedding_cache[text_hash]
+        
+        # Generate embedding if not cached - use dedicated thread pool
+        loop = asyncio.get_event_loop()
+        embedding = await loop.run_in_executor(
+            self._executor,
+            self._get_embedding_uncached,
+            text
         )
+        
+        # Cache the result
+        self._embedding_cache[text_hash] = embedding
+        
+        # Limit cache size to prevent memory issues
+        if len(self._embedding_cache) > 1000:
+            # Remove oldest entries (simple FIFO)
+            keys_to_remove = list(self._embedding_cache.keys())[:-900]
+            for key in keys_to_remove:
+                del self._embedding_cache[key]
+        
+        return embedding
+    
+    def __del__(self):
+        """Cleanup thread pool executor on deletion"""
+        if hasattr(self, '_executor'):
+            self._executor.shutdown(wait=False)
 
 class RefineEngine:
     """Implements the Draft → Critique → Revise → Converge refinement pattern"""
