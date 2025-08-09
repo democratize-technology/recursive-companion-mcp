@@ -139,6 +139,7 @@ class TestProgressFormatting:
             status=RefinementStatus.DRAFTING,
             current_iteration=0,
             max_iterations=5,
+            convergence_threshold=0.95,
             convergence_score=0.0
         )
         
@@ -158,6 +159,7 @@ class TestProgressFormatting:
             status=RefinementStatus.CRITIQUING,
             current_iteration=2,
             max_iterations=5,
+            convergence_threshold=0.95,
             convergence_score=0.65
         )
         
@@ -179,6 +181,7 @@ class TestProgressFormatting:
             status=RefinementStatus.REVISING,
             current_iteration=3,
             max_iterations=5,
+            convergence_threshold=0.95,
             convergence_score=0.82
         )
         
@@ -200,6 +203,7 @@ class TestProgressFormatting:
             status=RefinementStatus.CONVERGED,
             current_iteration=4,
             max_iterations=10,
+            convergence_threshold=0.95,
             convergence_score=0.98
         )
         

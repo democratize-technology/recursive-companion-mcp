@@ -78,48 +78,51 @@ class TestDomainDetector:
 class TestBedrockClient:
     """Test AWS Bedrock client operations"""
     
-    def test_credential_validation_success(self):
-        """Test successful credential validation"""
-        with patch('boto3.Session') as mock_session, \
-             patch('boto3.client') as mock_client:
-            # Mock successful credential retrieval
-            mock_creds = Mock()
-            mock_creds.get_frozen_credentials.return_value = Mock(access_key='test_key')
-            mock_session.return_value.get_credentials.return_value = mock_creds
-            
+    @pytest.mark.asyncio
+    async def test_credential_validation_success(self):
+        """Test successful credential validation with async initialization"""
+        with patch('boto3.client') as mock_client:
             # Mock successful Bedrock client creation
             mock_bedrock = Mock()
             mock_bedrock.list_foundation_models.return_value = {'models': []}
             mock_client.return_value = mock_bedrock
             
-            # Should not raise an exception
+            # Create client (doesn't validate on init anymore)
             client = BedrockClient()
-            assert client.bedrock_runtime is not None
+            assert client.bedrock_runtime is None  # Not initialized yet
             assert hasattr(client, '_executor')
+            
+            # Force initialization
+            await client._ensure_initialized()
+            assert client.bedrock_runtime is not None
+            assert client._initialized is True
     
-    def test_credential_validation_no_credentials(self):
+    @pytest.mark.asyncio
+    async def test_credential_validation_no_credentials(self):
         """Test handling of missing credentials"""
-        with patch('boto3.Session') as mock_session:
-            # Mock no credentials available
-            mock_session.return_value.get_credentials.return_value = None
+        with patch('boto3.client') as mock_client:
+            # Mock credential failure
+            mock_client.side_effect = Exception("No credentials found")
             
-            # Should raise ValueError with appropriate message
+            client = BedrockClient()
+            # Should raise ValueError when trying to initialize
             with pytest.raises(ValueError) as exc_info:
-                BedrockClient()
-            assert "No AWS credentials found" in str(exc_info.value)
+                await client._ensure_initialized()
+            assert "AWS Bedrock initialization failed" in str(exc_info.value)
     
-    def test_credential_validation_no_access_key(self):
+    @pytest.mark.asyncio
+    async def test_credential_validation_no_access_key(self):
         """Test handling of invalid credentials"""
-        with patch('boto3.Session') as mock_session:
-            # Mock credentials without access key
-            mock_creds = Mock()
-            mock_creds.get_frozen_credentials.return_value = Mock(access_key=None)
-            mock_session.return_value.get_credentials.return_value = mock_creds
+        with patch('boto3.client') as mock_client:
+            # Mock credential error with access key issue
+            mock_client.side_effect = Exception("Invalid access key AKIAIOSFODNN7EXAMPLE")
             
-            # Should raise ValueError with appropriate message
+            client = BedrockClient()
+            # Should raise ValueError with sanitized message
             with pytest.raises(ValueError) as exc_info:
-                BedrockClient()
-            assert "AWS access key not found" in str(exc_info.value)
+                await client._ensure_initialized()
+            assert "[REDACTED_ACCESS_KEY]" in str(exc_info.value)
+            assert "AKIAIOSFODNN7EXAMPLE" not in str(exc_info.value)
     
     @pytest.mark.asyncio
     async def test_generate_text(self):

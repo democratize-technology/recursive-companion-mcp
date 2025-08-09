@@ -11,6 +11,7 @@ from typing import Dict, Optional, Any
 from dataclasses import dataclass, field, asdict
 from datetime import datetime
 from enum import Enum
+from domains import get_domain_system_prompt
 
 
 class RefinementStatus(Enum):
@@ -527,6 +528,20 @@ Create an improved response that addresses these critiques while maintaining acc
                 "_human_action": "Use list_refinement_sessions to find valid sessions"
             }
         
+        # Check if session is already completed
+        if session.status in [RefinementStatus.CONVERGED, RefinementStatus.ERROR, RefinementStatus.TIMEOUT]:
+            return {
+                "success": False,
+                "error": f"Session already completed with status: {session.status.value}",
+                "_ai_context": {
+                    "current_status": session.status.value,
+                    "iterations_completed": session.current_iteration,
+                    "convergence_score": session.convergence_score
+                },
+                "_ai_suggestion": "Cannot abort a completed session",
+                "_human_action": "Use get_final_result to retrieve the completed result"
+            }
+        
         # Mark as aborted
         self.session_manager.update_session(
             session_id,
@@ -567,22 +582,24 @@ Create an improved response that addresses these critiques while maintaining acc
     def _get_action_description(self, status: RefinementStatus) -> str:
         """Human-friendly action descriptions"""
         descriptions = {
-            RefinementStatus.DRAFTING: "Creating initial response",
-            RefinementStatus.CRITIQUING: "Analyzing for improvements",
+            RefinementStatus.INITIALIZING: "Starting refinement process",
+            RefinementStatus.DRAFTING: "Creating initial draft",
+            RefinementStatus.CRITIQUING: "Analyzing draft for improvements",
             RefinementStatus.REVISING: "Incorporating feedback",
-            RefinementStatus.CONVERGED: "Refinement complete!",
-            RefinementStatus.ABORTED: "Refinement stopped by user",
-            RefinementStatus.TIMEOUT: "Refinement timed out",
-            RefinementStatus.ERROR: "Refinement encountered an error"
+            RefinementStatus.CONVERGED: "Refinement complete - convergence achieved",
+            RefinementStatus.ABORTED: "Refinement aborted by user",
+            RefinementStatus.TIMEOUT: "Maximum iterations reached",
+            RefinementStatus.ERROR: "Error occurred during refinement"
         }
         return descriptions.get(status, "Processing")
     
     def _get_status_emoji(self, status: RefinementStatus) -> str:
         """Fun status indicators"""
         emojis = {
-            RefinementStatus.DRAFTING: "✍️",
+            RefinementStatus.INITIALIZING: "🚀",
+            RefinementStatus.DRAFTING: "📝",
             RefinementStatus.CRITIQUING: "🔍",
-            RefinementStatus.REVISING: "✨",
+            RefinementStatus.REVISING: "✏️",
             RefinementStatus.CONVERGED: "✅",
             RefinementStatus.ERROR: "❌",
             RefinementStatus.ABORTED: "🛑",
@@ -612,12 +629,4 @@ Create an improved response that addresses these critiques while maintaining acc
     
     def _get_domain_system_prompt(self, domain: str) -> str:
         """Get domain-specific system prompt"""
-        prompts = {
-            "technical": "You are a technical expert. Focus on accuracy, best practices, and clear technical explanations.",
-            "marketing": "You are a marketing strategist. Focus on audience engagement, brand messaging, and ROI.",
-            "strategy": "You are a strategic advisor. Focus on long-term vision, competitive advantage, and actionable insights.",
-            "legal": "You are a legal expert. Focus on compliance, risk mitigation, and precise legal language.",
-            "financial": "You are a financial analyst. Focus on quantitative analysis, financial metrics, and data-driven insights.",
-            "general": "You are a helpful assistant. Provide clear, accurate, and well-structured responses."
-        }
-        return prompts.get(domain, prompts["general"])
+        return get_domain_system_prompt(domain)

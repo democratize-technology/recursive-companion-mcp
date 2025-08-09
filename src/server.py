@@ -23,6 +23,8 @@ from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
 from incremental_engine import IncrementalRefineEngine
+from config import config
+from domains import DomainDetector, get_domain_system_prompt
 
 logging.basicConfig(
     level=logging.INFO,
@@ -32,13 +34,14 @@ logger = logging.getLogger(__name__)
 
 server = Server("recursive-companion")
 
-AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
-CLAUDE_MODEL = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-sonnet-20240229-v1:0")
-CRITIQUE_MODEL = os.getenv("CRITIQUE_MODEL_ID", CLAUDE_MODEL)  # Can use Haiku for faster critiques
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL_ID", "amazon.titan-embed-text-v1")
-MAX_ITERATIONS = int(os.getenv("MAX_ITERATIONS", "10"))
-CONVERGENCE_THRESHOLD = float(os.getenv("CONVERGENCE_THRESHOLD", "0.98"))
-PARALLEL_CRITIQUES = int(os.getenv("PARALLEL_CRITIQUES", "3"))
+# Use centralized configuration
+AWS_REGION = config.aws_region
+CLAUDE_MODEL = config.bedrock_model_id
+CRITIQUE_MODEL = config.critique_model_id
+EMBEDDING_MODEL = config.embedding_model_id
+MAX_ITERATIONS = config.max_iterations
+CONVERGENCE_THRESHOLD = config.convergence_threshold
+PARALLEL_CRITIQUES = config.parallel_critiques
 
 MAX_PROMPT_LENGTH = int(os.getenv("MAX_PROMPT_LENGTH", "10000"))
 MIN_PROMPT_LENGTH = int(os.getenv("MIN_PROMPT_LENGTH", "10"))
@@ -109,13 +112,7 @@ def create_ai_error_response(error: Exception, context: str) -> dict:
     
     return response
 
-DOMAIN_KEYWORDS = {
-    "technical": ["code", "algorithm", "api", "debug", "performance", "architecture", "system", "database", "security"],
-    "marketing": ["campaign", "audience", "brand", "roi", "conversion", "engagement", "strategy", "market"],
-    "strategy": ["goal", "objective", "plan", "roadmap", "vision", "competitive", "analysis", "swot"],
-    "legal": ["contract", "compliance", "regulation", "liability", "agreement", "terms", "privacy", "gdpr"],
-    "financial": ["revenue", "cost", "budget", "forecast", "investment", "profit", "cash flow", "valuation"]
-}
+# Domain keywords and prompts are now in domains.py
 
 @dataclass
 class RefinementIteration:
@@ -165,74 +162,77 @@ class SecurityValidator:
                 
         return True, "Valid"
 
-class DomainDetector:
-    """Detects the appropriate domain for a given prompt"""
-    
-    @staticmethod
-    def detect_domain(prompt: str) -> str:
-        """Auto-detect domain based on keywords and patterns"""
-        prompt_lower = prompt.lower()
-        domain_scores = {}
-        
-        for domain, keywords in DOMAIN_KEYWORDS.items():
-            score = sum(1 for keyword in keywords if keyword in prompt_lower)
-            if score > 0:
-                domain_scores[domain] = score
-                
-        if not domain_scores:
-            return "general"
-            
-        # Return domain with highest score
-        return max(domain_scores, key=domain_scores.get)
+# DomainDetector is now imported from domains.py
 
 class BedrockClient:
     """Wrapper for AWS Bedrock operations"""
     
     def __init__(self):
-        try:
-            # Validate AWS credentials are available
-            session = boto3.Session(region_name=AWS_REGION)
-            credentials = session.get_credentials()
-            
-            if not credentials:
-                raise ValueError("No AWS credentials found. Please configure AWS credentials.")
-            
-            # Verify credentials are not expired
-            frozen_credentials = credentials.get_frozen_credentials()
-            if not frozen_credentials.access_key:
-                raise ValueError("AWS access key not found in credentials")
-                
-            # Create the Bedrock runtime client
-            self.bedrock_runtime = boto3.client(
-                service_name='bedrock-runtime',
-                region_name=AWS_REGION
-            )
-            
-            # Test the connection with a simple API call
-            self._test_connection()
-            
-            logger.info(f"AWS Bedrock client initialized successfully in region {AWS_REGION}")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize AWS Bedrock client: {e}")
-            raise ValueError(f"AWS Bedrock initialization failed: {str(e)}")
-            
+        """Initialize without blocking - credentials will be validated on first use"""
+        self.bedrock_runtime = None
         self._embedding_cache = {}
-        # Create a thread pool for async operations
-        self._executor = ThreadPoolExecutor(max_workers=4)
+        self._executor = ThreadPoolExecutor(max_workers=config.executor_max_workers)
+        self._initialized = False
+        self._init_lock = asyncio.Lock()
     
-    def _test_connection(self):
-        """Test AWS Bedrock connection by listing models"""
+    async def _ensure_initialized(self):
+        """Ensure client is initialized (async lazy initialization)"""
+        if self._initialized:
+            return
+            
+        async with self._init_lock:
+            if self._initialized:  # Double-check after acquiring lock
+                return
+                
+            try:
+                # Create the Bedrock runtime client
+                self.bedrock_runtime = boto3.client(
+                    service_name='bedrock-runtime',
+                    region_name=AWS_REGION
+                )
+                
+                # Test connection asynchronously
+                await self._test_connection_async()
+                
+                self._initialized = True
+                logger.info(f"AWS Bedrock client initialized successfully in region {AWS_REGION}")
+                
+            except Exception as e:
+                # Scrub any sensitive information from error message
+                error_msg = self._sanitize_error_message(str(e))
+                logger.error(f"Failed to initialize AWS Bedrock client: {error_msg}")
+                raise ValueError(f"AWS Bedrock initialization failed: {error_msg}")
+    
+    def _sanitize_error_message(self, error_msg: str) -> str:
+        """Remove sensitive information from error messages"""
+        # Remove potential access keys, secret keys, and session tokens
+        # Pattern for AWS access key IDs (AKIA followed by 16 alphanumeric)
+        error_msg = re.sub(r'AKIA[A-Z0-9]{16}', '[REDACTED_ACCESS_KEY]', error_msg)
+        # Pattern for potential secret keys (40 character base64-like strings)
+        error_msg = re.sub(r'[A-Za-z0-9+/]{40}', '[REDACTED_SECRET]', error_msg)
+        # Remove any key=value pairs that might contain credentials
+        error_msg = re.sub(r'(aws_access_key_id|aws_secret_access_key|aws_session_token)=[^\s]+', 
+                          r'\1=[REDACTED]', error_msg, flags=re.IGNORECASE)
+        return error_msg
+    
+    async def _test_connection_async(self):
+        """Test AWS Bedrock connection asynchronously"""
         try:
-            # Create a bedrock client (not bedrock-runtime) for testing
-            bedrock = boto3.client(
-                service_name='bedrock',
-                region_name=AWS_REGION
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                self._executor,
+                self._test_connection_sync
             )
-            # Just test that we can make an API call
-            bedrock.list_foundation_models(byProvider='Anthropic', maxResults=1)
         except Exception as e:
-            logger.warning(f"Could not verify Bedrock access: {e}")
+            logger.warning(f"Could not verify Bedrock access: {self._sanitize_error_message(str(e))}")
+    
+    def _test_connection_sync(self):
+        """Synchronous connection test for executor"""
+        bedrock = boto3.client(
+            service_name='bedrock',
+            region_name=AWS_REGION
+        )
+        bedrock.list_foundation_models(byProvider='Anthropic', maxResults=1)
         
     def _invoke_model_sync(self, model: str, body: dict) -> dict:
         """Synchronous model invocation for thread pool executor"""
@@ -245,10 +245,13 @@ class BedrockClient:
     async def generate_text(self, prompt: str, system_prompt: str = "", temperature: float = 0.7, model_override: str = None) -> str:
         """Generate text using Claude via Bedrock with optimized async handling"""
         try:
+            # Ensure initialized before using
+            await self._ensure_initialized()
+            
             model = model_override or CLAUDE_MODEL
             body = {
                 "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 4096,
+                "max_tokens": config.max_tokens,
                 "temperature": temperature,
                 "messages": [
                     {
@@ -299,11 +302,14 @@ class BedrockClient:
     async def get_embedding(self, text: str) -> List[float]:
         """Get text embedding with proper caching and optimized async handling"""
         # Create hash for caching
-        text_hash = hashlib.sha256(text.encode()).hexdigest()[:16]
+        text_hash = hashlib.sha256(text.encode()).hexdigest()[:config.cache_key_length]
         
         # Check cache first
         if text_hash in self._embedding_cache:
             return self._embedding_cache[text_hash]
+        
+        # Ensure initialized before using
+        await self._ensure_initialized()
         
         # Generate embedding if not cached - use dedicated thread pool
         loop = asyncio.get_event_loop()
@@ -317,9 +323,9 @@ class BedrockClient:
         self._embedding_cache[text_hash] = embedding
         
         # Limit cache size to prevent memory issues
-        if len(self._embedding_cache) > 1000:
+        if len(self._embedding_cache) > config.embedding_cache_size:
             # Remove oldest entries (simple FIFO)
-            keys_to_remove = list(self._embedding_cache.keys())[:-900]
+            keys_to_remove = list(self._embedding_cache.keys())[:-config.embedding_cache_trim_to]
             for key in keys_to_remove:
                 del self._embedding_cache[key]
         
@@ -354,15 +360,7 @@ class RefineEngine:
         
     def _get_domain_system_prompt(self, domain: str) -> str:
         """Get domain-specific system prompt"""
-        prompts = {
-            "technical": "You are a technical expert. Focus on accuracy, best practices, and clear technical explanations.",
-            "marketing": "You are a marketing strategist. Focus on audience engagement, brand messaging, and ROI.",
-            "strategy": "You are a strategic advisor. Focus on long-term vision, competitive advantage, and actionable insights.",
-            "legal": "You are a legal expert. Focus on compliance, risk mitigation, and precise legal language.",
-            "financial": "You are a financial analyst. Focus on quantitative analysis, financial metrics, and data-driven insights.",
-            "general": "You are a helpful assistant. Provide clear, accurate, and well-structured responses."
-        }
-        return prompts.get(domain, prompts["general"])
+        return get_domain_system_prompt(domain)
 
     async def _generate_draft(self, prompt: str, domain: str) -> str:
         """Generate initial draft response"""
@@ -650,7 +648,7 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 # Track in history
                 session_history.insert(0, {
                     'session_id': result['session_id'],
-                    'prompt_preview': prompt[:50] + '...' if len(prompt) > 50 else prompt,
+                    'prompt_preview': prompt[:config.prompt_preview_length] + '...' if len(prompt) > config.prompt_preview_length else prompt,
                     'started_at': datetime.utcnow().isoformat()
                 })
                 if len(session_history) > 5:

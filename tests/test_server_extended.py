@@ -14,7 +14,6 @@ sys.path.insert(0, './src')
 from server import (
     BedrockClient,
     RefineEngine,
-    DomainDetector,
     SecurityValidator,
     create_ai_error_response,
     MAX_PROMPT_LENGTH,
@@ -25,6 +24,7 @@ from incremental_engine import (
     RefinementSession,
     RefinementStatus
 )
+from domains import DomainDetector
 
 
 class TestBedrockClientExtended:
@@ -97,28 +97,29 @@ class TestSecurityValidator:
         ]
         
         for prompt in unsafe_prompts:
-            result = validator.validate_prompt(prompt)
-            assert result["is_safe"] is False
-            assert result["risk_level"] in ["high", "critical"]
-            assert "reason" in result
+            is_safe, message = validator.validate_prompt(prompt)
+            assert is_safe is False
+            assert "dangerous" in message.lower() or "injection" in message.lower()
     
     def test_validate_edge_cases(self):
         """Test validation edge cases"""
         validator = SecurityValidator()
         
         # Empty prompt
-        result = validator.validate_prompt("")
-        assert result["is_safe"] is True
+        is_safe, message = validator.validate_prompt("")
+        assert is_safe is False
+        assert "too short" in message.lower()
         
         # Very long prompt
-        long_prompt = "a" * 10000
-        result = validator.validate_prompt(long_prompt)
-        assert "is_safe" in result
+        long_prompt = "a" * 100000
+        is_safe, message = validator.validate_prompt(long_prompt)
+        assert is_safe is False
+        assert "too long" in message.lower()
         
-        # Special characters
+        # Special characters (should be valid)
         special_prompt = "Test @#$%^&*() prompt"
-        result = validator.validate_prompt(special_prompt)
-        assert "is_safe" in result
+        is_safe, message = validator.validate_prompt(special_prompt)
+        assert is_safe is True
 
 
 class TestErrorHandling:
