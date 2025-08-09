@@ -24,17 +24,14 @@ from mcp.types import Tool, TextContent
 
 from incremental_engine import IncrementalRefineEngine
 
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Initialize MCP server
 server = Server("recursive-companion")
 
-# Configuration
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 CLAUDE_MODEL = os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-sonnet-20240229-v1:0")
 CRITIQUE_MODEL = os.getenv("CRITIQUE_MODEL_ID", CLAUDE_MODEL)  # Can use Haiku for faster critiques
@@ -43,12 +40,10 @@ MAX_ITERATIONS = int(os.getenv("MAX_ITERATIONS", "10"))
 CONVERGENCE_THRESHOLD = float(os.getenv("CONVERGENCE_THRESHOLD", "0.98"))
 PARALLEL_CRITIQUES = int(os.getenv("PARALLEL_CRITIQUES", "3"))
 
-# Security configurations
 MAX_PROMPT_LENGTH = int(os.getenv("MAX_PROMPT_LENGTH", "10000"))
 MIN_PROMPT_LENGTH = int(os.getenv("MIN_PROMPT_LENGTH", "10"))
 REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "300"))  # 5 minutes
 
-# Session tracking for better UX
 current_session_id = None
 session_history = []  # Track last 5 sessions
 
@@ -114,7 +109,6 @@ def create_ai_error_response(error: Exception, context: str) -> dict:
     
     return response
 
-# Domain configurations
 DOMAIN_KEYWORDS = {
     "technical": ["code", "algorithm", "api", "debug", "performance", "architecture", "system", "database", "security"],
     "marketing": ["campaign", "audience", "brand", "roi", "conversion", "engagement", "strategy", "market"],
@@ -440,12 +434,10 @@ Create an improved response that addresses these critiques while maintaining acc
             }
         )
 
-# Initialize global instances
 bedrock_client = None
 refine_engine = None
 incremental_engine = None
 
-# Tool handlers
 @server.list_tools()
 async def handle_list_tools() -> list[Tool]:
     """List available tools"""
@@ -565,7 +557,6 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
     """Handle tool calls"""
     global refine_engine, incremental_engine, current_session_id, session_history
     
-    # Incremental refinement tools
     if name == "start_refinement":
         try:
             if not incremental_engine:

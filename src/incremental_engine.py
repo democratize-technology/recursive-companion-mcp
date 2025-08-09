@@ -142,7 +142,6 @@ class IncrementalRefineEngine:
         
     async def start_refinement(self, prompt: str, domain: str = "auto", config: Optional[Dict] = None) -> Dict[str, Any]:
         """Start a new refinement session - returns immediately"""
-        # Validate input
         is_valid, validation_msg = self.validator.validate_prompt(prompt)
         if not is_valid:
             return {
@@ -158,15 +157,12 @@ class IncrementalRefineEngine:
                 "_human_action": "Provide a more detailed prompt"
             }
         
-        # Auto-detect domain if needed
         if domain == "auto":
             domain = self.domain_detector.detect_domain(prompt)
         
-        # Create session
         config = config or {}
         session = self.session_manager.create_session(prompt, domain, config)
         
-        # Start with drafting status
         self.session_manager.update_session(
             session.session_id,
             status=RefinementStatus.DRAFTING
@@ -185,7 +181,6 @@ class IncrementalRefineEngine:
         """Continue refinement for one iteration - returns quickly"""
         session = self.session_manager.get_session(session_id)
         if not session:
-            # Get active sessions for context
             active_sessions = self.session_manager.list_active_sessions()
             return {
                 "success": False,
@@ -201,7 +196,6 @@ class IncrementalRefineEngine:
             }
         
         try:
-            # Check if already converged or at max iterations
             if session.status == RefinementStatus.CONVERGED:
                 return {
                     "success": True,
@@ -232,7 +226,6 @@ class IncrementalRefineEngine:
                     }
                 }
             
-            # Perform one step based on current status
             if session.status == RefinementStatus.DRAFTING:
                 result = await self._do_draft_step(session)
             elif session.status == RefinementStatus.CRITIQUING:
@@ -280,7 +273,6 @@ class IncrementalRefineEngine:
         
         draft = await self.bedrock.generate_text(draft_prompt, system_prompt)
         
-        # Update session
         self.session_manager.update_session(
             session.session_id,
             current_draft=draft,
@@ -288,7 +280,6 @@ class IncrementalRefineEngine:
             status=RefinementStatus.CRITIQUING
         )
         
-        # Add to iteration history
         session.iterations_history.append({
             "iteration": 1,
             "type": "draft",
@@ -330,7 +321,6 @@ class IncrementalRefineEngine:
         critiques = await asyncio.gather(*critique_tasks, return_exceptions=True)
         valid_critiques = [c for c in critiques if isinstance(c, str)]
         
-        # Update session
         self.session_manager.update_session(
             session.session_id,
             critiques=valid_critiques,
@@ -379,7 +369,6 @@ Create an improved response that addresses these critiques while maintaining acc
         previous_embedding = await self.bedrock.get_embedding(session.current_draft)
         convergence_score = self._cosine_similarity(previous_embedding, current_embedding)
         
-        # Update session
         self.session_manager.update_session(
             session.session_id,
             previous_draft=session.current_draft,
@@ -388,7 +377,6 @@ Create an improved response that addresses these critiques while maintaining acc
             current_iteration=session.current_iteration + 1
         )
         
-        # Add to iteration history
         session.iterations_history.append({
             "iteration": session.current_iteration,
             "type": "revision",
