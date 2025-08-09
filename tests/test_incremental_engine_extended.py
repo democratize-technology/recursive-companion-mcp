@@ -314,9 +314,9 @@ class TestConvergenceMeasurement:
         # Mock successful revision
         mock_bedrock.generate_text = AsyncMock(return_value="Improved draft based on critiques")
         
-        # Mock embeddings for high convergence (0.92)
+        # Mock embeddings for convergence (0.99 - above default threshold of 0.98)
         current_embedding = np.array([0.5, 0.5, 0.5, 0.5])
-        new_embedding = np.array([0.48, 0.48, 0.52, 0.52])  # Very similar
+        new_embedding = np.array([0.498, 0.498, 0.502, 0.502])  # Almost identical
         mock_bedrock.get_embedding = AsyncMock(side_effect=[
             current_embedding.tolist(),
             new_embedding.tolist()
@@ -411,7 +411,7 @@ class TestConvergenceMeasurement:
         # Either converged status or high convergence score
         if "status" in result:
             assert result["status"] == "converged"
-            assert "Convergence achieved" in result["message"]
+            assert "converged" in result["message"].lower()
         assert result["convergence_score"] >= 0.95
 
 

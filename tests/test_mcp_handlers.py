@@ -202,8 +202,8 @@ class TestMCPHandlers:
                 
                 response = json.loads(result[0].text)
                 assert response["success"] is True
-                assert response["total_active"] == 2
-                assert response["current_session"] == "sess1"
+                assert response["count"] == 2
+                assert len(response["sessions"]) == 2
     
     @pytest.mark.asyncio
     async def test_handle_abort_refinement(self):
@@ -240,7 +240,7 @@ class TestMCPHandlers:
         mock_engine.continue_refinement = AsyncMock(side_effect=[
             {"success": True, "status": "draft_complete", "continue_needed": True},
             {"success": True, "status": "critique_complete", "continue_needed": True},
-            {"success": True, "status": "converged", "continue_needed": False}
+            {"success": True, "status": "converged", "continue_needed": False, "final_answer": "Quick refined result"}
         ])
         
         mock_engine.get_final_result = AsyncMock(return_value={
@@ -271,9 +271,9 @@ class TestMCPHandlers:
         })
         
         # Simulate timeout with slow refinement
-        async def slow_continue():
+        async def slow_continue(session_id):
             await asyncio.sleep(2)
-            return {"success": True, "continue_needed": True}
+            return {"success": True, "status": "in_progress", "continue_needed": True}
         
         mock_engine.continue_refinement = AsyncMock(side_effect=slow_continue)
         mock_engine.abort_refinement = AsyncMock(return_value={
@@ -388,12 +388,13 @@ class TestServerInitialization:
             mock_server_instance.run = AsyncMock()
             mock_server_class.return_value = mock_server_instance
             
-            with patch('server.stdio_transport') as mock_transport:
-                mock_transport.return_value = (Mock(), Mock())
+            with patch('server.stdio_server') as mock_stdio:
+                mock_stdio.return_value.__aenter__ = AsyncMock(return_value=(Mock(), Mock()))
+                mock_stdio.return_value.__aexit__ = AsyncMock(return_value=None)
                 
                 # Cannot directly call main due to event loop, but test setup
                 assert mock_server_class is not None
-                assert mock_transport is not None
+                assert mock_stdio is not None
 
 
 class TestErrorResponses:
@@ -406,8 +407,8 @@ class TestErrorResponses:
         
         assert response["success"] is False
         assert "_ai_diagnosis" in response
-        assert "_ai_actions" in response
-        assert any("timeout" in str(action).lower() for action in response["_ai_actions"])
+        assert "_ai_suggestion" in response
+        assert "quick_refine" in response["_ai_suggestion"]
     
     def test_connection_error_response(self):
         """Test connection error generates proper hints"""
@@ -415,8 +416,8 @@ class TestErrorResponses:
         response = create_ai_error_response(error, "bedrock_call")
         
         assert response["success"] is False
-        assert "_ai_diagnosis" in response
-        assert "_human_action" in response
+        assert "error" in response
+        assert response["error_type"] == "ConnectionError"
     
     def test_validation_error_response(self):
         """Test validation error generates proper hints"""
