@@ -54,6 +54,13 @@ class ServerConfig:
     default_temperature: float = 0.7
     critique_temperature: float = 0.3
     
+    # Prompt Validation
+    max_prompt_length: int = field(default_factory=lambda: int(os.getenv("MAX_PROMPT_LENGTH", "10000")))
+    min_prompt_length: int = field(default_factory=lambda: int(os.getenv("MIN_PROMPT_LENGTH", "10")))
+    
+    # Request Timeout
+    request_timeout: int = field(default_factory=lambda: int(os.getenv("REQUEST_TIMEOUT", "300")))
+    
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary"""
         return {

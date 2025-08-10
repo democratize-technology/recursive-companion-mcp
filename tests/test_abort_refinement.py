@@ -14,7 +14,8 @@ from incremental_engine import (
     RefinementStatus,
     SessionManager
 )
-from server import DomainDetector, SecurityValidator
+from domains import DomainDetector
+from validation import SecurityValidator
 
 
 class TestAbortRefinementComplete:

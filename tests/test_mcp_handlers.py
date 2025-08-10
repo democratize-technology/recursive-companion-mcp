@@ -13,13 +13,12 @@ import sys
 sys.path.insert(0, './src')
 from server import (
     handle_call_tool,
-    create_ai_error_response,
     incremental_engine,
-    current_session_id,
-    session_history,
+    session_tracker,
     server,
     main
 )
+from error_handling import create_ai_error_response
 from incremental_engine import (
     IncrementalRefineEngine,
     RefinementSession,
@@ -98,7 +97,7 @@ class TestMCPHandlers:
         })
         
         with patch('server.incremental_engine', mock_engine):
-            with patch('server.current_session_id', 'auto-session-123'):
+            with patch.object(session_tracker, 'get_current_session', return_value='auto-session-123'):
                 result = await handle_call_tool(
                     "continue_refinement",
                     {}  # No session_id provided
@@ -120,7 +119,7 @@ class TestMCPHandlers:
         mock_engine.session_manager = mock_session_manager
         
         with patch('server.incremental_engine', mock_engine):
-            with patch('server.current_session_id', None):
+            with patch.object(session_tracker, 'get_current_session', return_value=None):
                 result = await handle_call_tool(
                     "continue_refinement",
                     {}
@@ -194,7 +193,7 @@ class TestMCPHandlers:
         mock_engine.session_manager = mock_session_manager
         
         with patch('server.incremental_engine', mock_engine):
-            with patch('server.current_session_id', 'sess1'):
+            with patch.object(session_tracker, 'get_current_session', return_value='sess1'):
                 result = await handle_call_tool(
                     "list_refinement_sessions",
                     {}
@@ -335,27 +334,19 @@ class TestSessionTracking:
     
     def test_session_history_management(self):
         """Test session history is properly maintained"""
-        from server import session_history
+        from session_manager import SessionTracker
         
-        # Clear history
-        session_history.clear()
+        # Create new tracker for test
+        test_tracker = SessionTracker()
         
         # Add multiple sessions
         for i in range(8):
-            session_history.insert(0, {
-                'session_id': f'hist-{i}',
-                'prompt_preview': f'Prompt {i}',
-                'started_at': datetime.utcnow().isoformat()
-            })
-            
-            # Keep only last 5
-            if len(session_history) > 5:
-                while len(session_history) > 5:
-                    session_history.pop()
+            test_tracker.set_current_session(f'hist-{i}', f'Prompt {i}')
         
-        assert len(session_history) <= 5
-        if len(session_history) == 5:
-            assert session_history[0]['session_id'] == 'hist-7'
+        history = test_tracker.get_session_history()
+        assert len(history) <= 5
+        if len(history) == 5:
+            assert history[0]['session_id'] == 'hist-7'
 
 
 class TestServerInitialization:

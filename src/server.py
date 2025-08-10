@@ -7,24 +7,23 @@ Implements iterative refinement through Draft → Critique → Revise → Conver
 import asyncio
 import json
 import logging
-import os
-import re
 import time
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
-import hashlib
+from typing import Any, Dict, List
 
 import boto3
-import numpy as np
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
 
-from incremental_engine import IncrementalRefineEngine
+from bedrock_client import BedrockClient
 from config import config
-from domains import DomainDetector, get_domain_system_prompt
+from domains import DomainDetector
+from error_handling import create_ai_error_response
+from incremental_engine import IncrementalRefineEngine
+from refine_engine import RefineEngine
+from session_manager import SessionTracker
+from validation import SecurityValidator
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,475 +33,12 @@ logger = logging.getLogger(__name__)
 
 server = Server("recursive-companion")
 
-# Use centralized configuration
-AWS_REGION = config.aws_region
-CLAUDE_MODEL = config.bedrock_model_id
-CRITIQUE_MODEL = config.critique_model_id
-EMBEDDING_MODEL = config.embedding_model_id
-MAX_ITERATIONS = config.max_iterations
-CONVERGENCE_THRESHOLD = config.convergence_threshold
-PARALLEL_CRITIQUES = config.parallel_critiques
+# Session tracking
+session_tracker = SessionTracker()
 
-MAX_PROMPT_LENGTH = int(os.getenv("MAX_PROMPT_LENGTH", "10000"))
-MIN_PROMPT_LENGTH = int(os.getenv("MIN_PROMPT_LENGTH", "10"))
-REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "300"))  # 5 minutes
+# Error handling is now in error_handling.py
 
-current_session_id = None
-session_history = []  # Track last 5 sessions
-
-def create_ai_error_response(error: Exception, context: str) -> dict:
-    """Create error response with AI-actionable hints"""
-    error_type = type(error).__name__
-    error_msg = str(error)
-    
-    # Common error patterns with AI-helpful diagnostics
-    response = {
-        "success": False,
-        "error": error_msg,
-        "error_type": error_type,
-        "context": context
-    }
-    
-    # AWS credential errors
-    if "credentials" in error_msg.lower() or "aws" in error_msg.lower():
-        response.update({
-            "_ai_diagnosis": "AWS credentials issue detected",
-            "_ai_actions": [
-                "Check if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set",
-                f"Verify AWS_REGION is correct (current: {AWS_REGION})",
-                "Test with: aws sts get-caller-identity"
-            ],
-            "_human_action": "Run 'aws configure' to set up AWS credentials"
-        })
-    # Bedrock model errors
-    elif "ResourceNotFoundException" in error_msg or "model" in error_msg.lower():
-        response.update({
-            "_ai_diagnosis": "AWS Bedrock model not available",
-            "_ai_context": {
-                "current_region": AWS_REGION,
-                "requested_model": CLAUDE_MODEL,
-                "critique_model": CRITIQUE_MODEL
-            },
-            "_ai_suggestion": "Try us-east-1 or us-west-2 regions",
-            "_human_action": "Change AWS_REGION in .env or enable model in AWS console"
-        })
-    # Timeout errors
-    elif error_type == "TimeoutError":
-        response.update({
-            "_ai_diagnosis": "Operation exceeded timeout",
-            "_ai_suggestion": "For long refinements, use quick_refine with higher max_wait",
-            "_ai_alternative": "Or use start_refinement + continue_refinement for control",
-            "_human_action": "Try quick_refine with max_wait=60"
-        })
-    # Session errors
-    elif "session" in error_msg.lower() or error_type == "KeyError":
-        response.update({
-            "_ai_diagnosis": "Session not found or invalid",
-            "_ai_suggestion": "Check active sessions with list_refinement_sessions",
-            "_ai_recovery": "Start fresh with start_refinement",
-            "_human_action": "Verify session ID or start a new session"
-        })
-    else:
-        # Generic helpful hints
-        response.update({
-            "_ai_diagnosis": f"Unexpected error in {context}",
-            "_ai_suggestion": "Check server logs for details",
-            "_ai_context": {"error_type": error_type}
-        })
-    
-    return response
-
-# Domain keywords and prompts are now in domains.py
-
-@dataclass
-class RefinementIteration:
-    """Represents a single iteration in the refinement process"""
-    iteration_number: int
-    draft: str
-    critiques: List[str]
-    revision: str
-    convergence_score: float
-    timestamp: datetime = field(default_factory=datetime.now)
-    
-@dataclass
-class RefinementResult:
-    """Complete result of the refinement process"""
-    final_answer: str
-    domain: str
-    iterations: List[RefinementIteration]
-    total_iterations: int
-    convergence_achieved: bool
-    execution_time: float
-    metadata: Dict[str, Any]
-
-class SecurityValidator:
-    """Handles input validation and security checks"""
-    
-    @staticmethod
-    def validate_prompt(prompt: str) -> Tuple[bool, str]:
-        """Validate prompt for security and constraints"""
-        if not prompt or len(prompt.strip()) < MIN_PROMPT_LENGTH:
-            return False, f"Prompt too short (minimum {MIN_PROMPT_LENGTH} characters)"
-            
-        if len(prompt) > MAX_PROMPT_LENGTH:
-            return False, f"Prompt too long (maximum {MAX_PROMPT_LENGTH} characters)"
-            
-        # Check for potential injection patterns
-        dangerous_patterns = [
-            r"ignore\s+previous\s+instructions",
-            r"system\s+prompt",
-            r"<\s*script",
-            r"javascript:",
-            r"eval\s*\(",
-        ]
-        
-        for pattern in dangerous_patterns:
-            if re.search(pattern, prompt, re.IGNORECASE):
-                return False, "Potentially dangerous content detected"
-                
-        return True, "Valid"
-
-# DomainDetector is now imported from domains.py
-
-class BedrockClient:
-    """Wrapper for AWS Bedrock operations"""
-    
-    def __init__(self):
-        """Initialize without blocking - credentials will be validated on first use"""
-        self.bedrock_runtime = None
-        self._embedding_cache = {}
-        self._executor = ThreadPoolExecutor(max_workers=config.executor_max_workers)
-        self._initialized = False
-        self._init_lock = asyncio.Lock()
-    
-    async def _ensure_initialized(self):
-        """Ensure client is initialized (async lazy initialization)"""
-        if self._initialized:
-            return
-            
-        async with self._init_lock:
-            if self._initialized:  # Double-check after acquiring lock
-                return
-                
-            try:
-                # Create the Bedrock runtime client
-                self.bedrock_runtime = boto3.client(
-                    service_name='bedrock-runtime',
-                    region_name=AWS_REGION
-                )
-                
-                # Test connection asynchronously
-                await self._test_connection_async()
-                
-                self._initialized = True
-                logger.info(f"AWS Bedrock client initialized successfully in region {AWS_REGION}")
-                
-            except Exception as e:
-                # Scrub any sensitive information from error message
-                error_msg = self._sanitize_error_message(str(e))
-                logger.error(f"Failed to initialize AWS Bedrock client: {error_msg}")
-                raise ValueError(f"AWS Bedrock initialization failed: {error_msg}")
-    
-    def _sanitize_error_message(self, error_msg: str) -> str:
-        """Remove sensitive information from error messages"""
-        # Remove potential access keys, secret keys, and session tokens
-        # Pattern for AWS access key IDs (AKIA followed by 16 alphanumeric)
-        error_msg = re.sub(r'AKIA[A-Z0-9]{16}', '[REDACTED_ACCESS_KEY]', error_msg)
-        # Pattern for potential secret keys (40 character base64-like strings)
-        error_msg = re.sub(r'[A-Za-z0-9+/]{40}', '[REDACTED_SECRET]', error_msg)
-        # Remove any key=value pairs that might contain credentials
-        error_msg = re.sub(r'(aws_access_key_id|aws_secret_access_key|aws_session_token)=[^\s]+', 
-                          r'\1=[REDACTED]', error_msg, flags=re.IGNORECASE)
-        return error_msg
-    
-    async def _test_connection_async(self):
-        """Test AWS Bedrock connection asynchronously"""
-        try:
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                self._executor,
-                self._test_connection_sync
-            )
-        except Exception as e:
-            logger.warning(f"Could not verify Bedrock access: {self._sanitize_error_message(str(e))}")
-    
-    def _test_connection_sync(self):
-        """Synchronous connection test for executor"""
-        bedrock = boto3.client(
-            service_name='bedrock',
-            region_name=AWS_REGION
-        )
-        bedrock.list_foundation_models(byProvider='Anthropic', maxResults=1)
-        
-    def _invoke_model_sync(self, model: str, body: dict) -> dict:
-        """Synchronous model invocation for thread pool executor"""
-        response = self.bedrock_runtime.invoke_model(
-            modelId=model,
-            body=json.dumps(body)
-        )
-        return response
-    
-    async def generate_text(self, prompt: str, system_prompt: str = "", temperature: float = 0.7, model_override: str = None) -> str:
-        """Generate text using Claude via Bedrock with optimized async handling"""
-        try:
-            # Ensure initialized before using
-            await self._ensure_initialized()
-            
-            model = model_override or CLAUDE_MODEL
-            body = {
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": config.max_tokens,
-                "temperature": temperature,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ]
-            }
-            
-            if system_prompt:
-                body["system"] = system_prompt
-            
-            # Use the dedicated thread pool executor for better performance
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                self._executor,
-                self._invoke_model_sync,
-                model,
-                body
-            )
-            
-            response_body = json.loads(response['body'].read())
-            return response_body['content'][0]['text']
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON response from Bedrock: {e}")
-            raise ValueError("Invalid response format from Bedrock model")
-            
-        except Exception as e:
-            logger.error(f"Bedrock generation error: {e}")
-            raise
-
-    def _get_embedding_uncached(self, text: str) -> List[float]:
-        """Get text embedding using Titan"""
-        try:
-            response = self.bedrock_runtime.invoke_model(
-                modelId=EMBEDDING_MODEL,
-                body=json.dumps({"inputText": text})
-            )
-            response_body = json.loads(response['body'].read())
-            return response_body['embedding']
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON response from Bedrock: {e}")
-            raise ValueError("Invalid response format from Bedrock embedding model")
-        except Exception as e:
-            logger.error(f"Embedding generation error: {e}")
-            raise
-            
-    async def get_embedding(self, text: str) -> List[float]:
-        """Get text embedding with proper caching and optimized async handling"""
-        # Create hash for caching
-        text_hash = hashlib.sha256(text.encode()).hexdigest()[:config.cache_key_length]
-        
-        # Check cache first
-        if text_hash in self._embedding_cache:
-            return self._embedding_cache[text_hash]
-        
-        # Ensure initialized before using
-        await self._ensure_initialized()
-        
-        # Generate embedding if not cached - use dedicated thread pool
-        loop = asyncio.get_event_loop()
-        embedding = await loop.run_in_executor(
-            self._executor,
-            self._get_embedding_uncached,
-            text
-        )
-        
-        # Cache the result
-        self._embedding_cache[text_hash] = embedding
-        
-        # Limit cache size to prevent memory issues
-        if len(self._embedding_cache) > config.embedding_cache_size:
-            # Remove oldest entries (simple FIFO)
-            keys_to_remove = list(self._embedding_cache.keys())[:-config.embedding_cache_trim_to]
-            for key in keys_to_remove:
-                del self._embedding_cache[key]
-        
-        return embedding
-    
-    def __del__(self):
-        """Cleanup thread pool executor on deletion"""
-        if hasattr(self, '_executor'):
-            self._executor.shutdown(wait=False)
-
-class RefineEngine:
-    """Implements the Draft → Critique → Revise → Converge refinement pattern"""
-    
-    def __init__(self, bedrock_client: BedrockClient):
-        self.bedrock = bedrock_client
-        self.domain_detector = DomainDetector()
-        self.validator = SecurityValidator()
-        
-    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
-        """Calculate cosine similarity between two vectors"""
-        vec1_np = np.array(vec1)
-        vec2_np = np.array(vec2)
-        
-        dot_product = np.dot(vec1_np, vec2_np)
-        norm1 = np.linalg.norm(vec1_np)
-        norm2 = np.linalg.norm(vec2_np)
-        
-        if norm1 == 0 or norm2 == 0:
-            return 0.0
-            
-        return dot_product / (norm1 * norm2)
-        
-    def _get_domain_system_prompt(self, domain: str) -> str:
-        """Get domain-specific system prompt"""
-        return get_domain_system_prompt(domain)
-
-    async def _generate_draft(self, prompt: str, domain: str) -> str:
-        """Generate initial draft response"""
-        system_prompt = self._get_domain_system_prompt(domain)
-        draft_prompt = f"Please provide a comprehensive response to the following:\n\n{prompt}"
-        
-        return await self.bedrock.generate_text(draft_prompt, system_prompt)
-        
-    async def _generate_critiques(self, prompt: str, draft: str, domain: str) -> List[str]:
-        """Generate multiple critiques in parallel"""
-        critique_prompts = [
-            f"Critically analyze this response for accuracy and completeness:\n\nOriginal question: {prompt}\n\nResponse: {draft}\n\nProvide specific improvements.",
-            f"Evaluate this response for clarity and structure:\n\nOriginal question: {prompt}\n\nResponse: {draft}\n\nSuggest how to make it clearer.",
-            f"Review this response for {domain} best practices:\n\nOriginal question: {prompt}\n\nResponse: {draft}\n\nIdentify areas for domain-specific improvement."
-        ]
-        
-        # Generate critiques in parallel for performance
-        critique_tasks = [
-            self.bedrock.generate_text(critique_prompt, temperature=0.8, model_override=CRITIQUE_MODEL)
-            for critique_prompt in critique_prompts[:PARALLEL_CRITIQUES]
-        ]
-        
-        critiques = await asyncio.gather(*critique_tasks, return_exceptions=True)
-        
-        # Filter out any failed critiques
-        valid_critiques = [c for c in critiques if isinstance(c, str)]
-        
-        if not valid_critiques:
-            logger.warning("All critique generations failed, using fallback")
-            return ["Please improve the accuracy and clarity of the response."]
-            
-        return valid_critiques
-
-    async def _synthesize_revision(self, prompt: str, draft: str, critiques: List[str], domain: str) -> str:
-        """Synthesize critiques into an improved revision"""
-        system_prompt = self._get_domain_system_prompt(domain)
-        
-        critique_summary = "\n\n".join([f"Critique {i+1}: {c}" for i, c in enumerate(critiques)])
-        
-        revision_prompt = f"""Given the original question, current response, and critiques, create an improved version.
-
-Original question: {prompt}
-
-Current response: {draft}
-
-Critiques:
-{critique_summary}
-
-Create an improved response that addresses these critiques while maintaining accuracy and clarity."""
-        
-        return await self.bedrock.generate_text(revision_prompt, system_prompt, temperature=0.6)
-        
-    async def refine(self, prompt: str, domain: str = "auto") -> RefinementResult:
-        """Main refinement loop implementing Draft → Critique → Revise → Converge"""
-        start_time = time.time()
-        
-        # Validate input
-        is_valid, validation_msg = self.validator.validate_prompt(prompt)
-        if not is_valid:
-            raise ValueError(f"Invalid prompt: {validation_msg}")
-            
-        # Auto-detect domain if needed
-        if domain == "auto":
-            domain = self.domain_detector.detect_domain(prompt)
-            logger.info(f"Auto-detected domain: {domain}")
-
-        iterations = []
-        current_response = ""
-        previous_embedding = None
-        convergence_achieved = False
-        
-        try:
-            for iteration_num in range(1, MAX_ITERATIONS + 1):
-                logger.info(f"Starting iteration {iteration_num}")
-                
-                # Generate draft (or use previous revision)
-                if iteration_num == 1:
-                    draft = await self._generate_draft(prompt, domain)
-                else:
-                    draft = current_response
-                    
-                # Generate critiques in parallel
-                critiques = await self._generate_critiques(prompt, draft, domain)
-                
-                # Synthesize revision
-                revision = await self._synthesize_revision(prompt, draft, critiques, domain)
-                current_response = revision
-                
-                # Calculate convergence
-                current_embedding = await self.bedrock.get_embedding(revision)
-                
-                if previous_embedding is not None:
-                    convergence_score = self._cosine_similarity(previous_embedding, current_embedding)
-                    logger.info(f"Convergence score: {convergence_score}")
-                    
-                    if convergence_score >= CONVERGENCE_THRESHOLD:
-                        convergence_achieved = True
-                        logger.info(f"Convergence achieved at iteration {iteration_num}")
-                else:
-                    convergence_score = 0.0
-                    
-                # Record iteration
-                iterations.append(RefinementIteration(
-                    iteration_number=iteration_num,
-                    draft=draft,
-                    critiques=critiques,
-                    revision=revision,
-                    convergence_score=convergence_score
-                ))
-                
-                # Check for convergence
-                if convergence_achieved:
-                    break
-                    
-                previous_embedding = current_embedding
-
-                
-        except asyncio.TimeoutError:
-            logger.error("Refinement timeout exceeded")
-            raise TimeoutError(f"Refinement exceeded {REQUEST_TIMEOUT} seconds")
-        except Exception as e:
-            logger.error(f"Refinement error: {e}")
-            raise
-            
-        execution_time = time.time() - start_time
-        
-        return RefinementResult(
-            final_answer=current_response,
-            domain=domain,
-            iterations=iterations,
-            total_iterations=len(iterations),
-            convergence_achieved=convergence_achieved,
-            execution_time=execution_time,
-            metadata={
-                "model": CLAUDE_MODEL,
-                "embedding_model": EMBEDDING_MODEL,
-                "convergence_threshold": CONVERGENCE_THRESHOLD,
-                "max_iterations": MAX_ITERATIONS,
-                "parallel_critiques": PARALLEL_CRITIQUES
-            }
-        )
-
+# Initialize global instances
 bedrock_client = None
 refine_engine = None
 incremental_engine = None
@@ -624,7 +160,7 @@ async def handle_list_tools() -> list[Tool]:
 @server.call_tool()
 async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
     """Handle tool calls"""
-    global refine_engine, incremental_engine, current_session_id, session_history
+    global refine_engine, incremental_engine
     
     if name == "start_refinement":
         try:
@@ -644,15 +180,7 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
             
             # Track current session for better UX
             if result.get('success'):
-                current_session_id = result['session_id']
-                # Track in history
-                session_history.insert(0, {
-                    'session_id': result['session_id'],
-                    'prompt_preview': prompt[:config.prompt_preview_length] + '...' if len(prompt) > config.prompt_preview_length else prompt,
-                    'started_at': datetime.utcnow().isoformat()
-                })
-                if len(session_history) > 5:
-                    session_history = session_history[:5]  # Keep last 5
+                session_tracker.set_current_session(result['session_id'], prompt)
             
             return [TextContent(type="text", text=json.dumps(result, indent=2))]
             
@@ -673,7 +201,7 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                     }, indent=2)
                 )]
             
-            session_id = arguments.get('session_id', current_session_id)
+            session_id = arguments.get('session_id', session_tracker.get_current_session())
             
             if not session_id:
                 active_sessions = incremental_engine.session_manager.list_active_sessions() if incremental_engine else []
@@ -681,7 +209,7 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                     "success": False,
                     "error": "No session_id provided and no current session",
                     "_ai_context": {
-                        "current_session_id": current_session_id,
+                        "current_session_id": session_tracker.get_current_session(),
                         "active_session_count": len(active_sessions),
                         "recent_sessions": active_sessions[:2] if active_sessions else []
                     },
@@ -772,6 +300,7 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
             }, indent=2))]
     
     elif name == "current_session":
+        current_session_id = session_tracker.get_current_session()
         if not current_session_id:
             # Try to find the most recent session
             if incremental_engine:
@@ -805,7 +334,7 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                     "success": False
                 }, indent=2))]
             
-            session_id = arguments.get('session_id', current_session_id)
+            session_id = arguments.get('session_id', session_tracker.get_current_session())
             if not session_id:
                 return [TextContent(type="text", text=json.dumps({
                     "success": False,
@@ -839,7 +368,7 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 return [TextContent(type="text", text=json.dumps(start_result, indent=2))]
             
             session_id = start_result['session_id']
-            current_session_id = session_id
+            session_tracker.set_current_session(session_id, prompt)
             
             # Auto-continue until done or timeout
             start_time = time.time()
@@ -907,15 +436,15 @@ async def main():
         # Test Bedrock connection
         bedrock_test = boto3.client(
             service_name='bedrock',
-            region_name=AWS_REGION
+            region_name=config.aws_region
         )
         bedrock_test.list_foundation_models()
         logger.info("Successfully connected to AWS Bedrock")
-        logger.info(f"Using Claude model: {CLAUDE_MODEL}")
-        logger.info(f"Using embedding model: {EMBEDDING_MODEL}")
+        logger.info(f"Using Claude model: {config.bedrock_model_id}")
+        logger.info(f"Using embedding model: {config.embedding_model_id}")
         
         logger.info("Starting Recursive Companion MCP server")
-        logger.info(f"Configuration: max_iterations={MAX_ITERATIONS}, convergence_threshold={CONVERGENCE_THRESHOLD}")
+        logger.info(f"Configuration: max_iterations={config.max_iterations}, convergence_threshold={config.convergence_threshold}")
         
         async with stdio_server() as streams:
             await server.run(

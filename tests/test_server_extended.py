@@ -11,14 +11,14 @@ import os
 
 import sys
 sys.path.insert(0, './src')
-from server import (
-    BedrockClient,
-    RefineEngine,
-    SecurityValidator,
-    create_ai_error_response,
-    MAX_PROMPT_LENGTH,
-    main
-)
+from server import main
+from bedrock_client import BedrockClient
+from refine_engine import RefineEngine
+from validation import SecurityValidator
+from error_handling import create_ai_error_response
+from config import config
+
+MAX_PROMPT_LENGTH = config.max_prompt_length
 from incremental_engine import (
     IncrementalRefineEngine,
     RefinementSession,

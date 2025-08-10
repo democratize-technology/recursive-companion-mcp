@@ -11,13 +11,13 @@ import numpy as np
 # Import components from our modules
 import sys
 sys.path.insert(0, './src')
-from server import (
-    BedrockClient,
-    RefineEngine,
-    DomainDetector,
-    SecurityValidator,
-    MAX_PROMPT_LENGTH
-)
+from bedrock_client import BedrockClient
+from refine_engine import RefineEngine
+from domains import DomainDetector
+from validation import SecurityValidator
+from config import config
+
+MAX_PROMPT_LENGTH = config.max_prompt_length
 from incremental_engine import (
     IncrementalRefineEngine,
     RefinementSession,

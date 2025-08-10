@@ -11,10 +11,12 @@ from datetime import datetime
 # Import components to test
 import sys
 sys.path.insert(0, './src')
-from server import (
-    SecurityValidator, DomainDetector, BedrockClient, RefineEngine,
-    RefinementIteration, RefinementResult, handle_list_tools, handle_call_tool
-)
+from server import handle_list_tools, handle_call_tool
+from validation import SecurityValidator
+from domains import DomainDetector
+from bedrock_client import BedrockClient
+from refine_engine import RefineEngine
+from session_manager import RefinementIteration, RefinementResult
 
 class TestSecurityValidator:
     """Test input validation and security"""
@@ -270,19 +272,20 @@ class TestRefineEngine:
         return client
         
     def test_cosine_similarity(self, mock_bedrock_client):
-        engine = RefineEngine(mock_bedrock_client)
+        # Test cosine similarity directly on BedrockClient
+        client = BedrockClient()
         
         # Test identical vectors
         vec1 = [1.0, 0.0, 0.0]
-        assert engine._cosine_similarity(vec1, vec1) == 1.0
+        assert client.calculate_cosine_similarity(vec1, vec1) == 1.0
         
         # Test orthogonal vectors
         vec2 = [0.0, 1.0, 0.0]
-        assert abs(engine._cosine_similarity(vec1, vec2)) < 0.001
+        assert abs(client.calculate_cosine_similarity(vec1, vec2)) < 0.001
         
         # Test similar vectors
         vec3 = [0.9, 0.1, 0.0]
-        similarity = engine._cosine_similarity(vec1, vec3)
+        similarity = client.calculate_cosine_similarity(vec1, vec3)
         assert 0.9 < similarity < 1.0
         
     @pytest.mark.asyncio
@@ -308,6 +311,9 @@ class TestRefineEngine:
             [0.16, 0.26, 0.36, 0.46, 0.56]   # Revision 2 (converged)
         ]
         mock_bedrock_client.get_embedding.side_effect = embeddings
+        
+        # Mock cosine similarity for convergence
+        mock_bedrock_client.calculate_cosine_similarity.return_value = 0.99
         
         engine = RefineEngine(mock_bedrock_client)
         result = await engine.refine("Test prompt", "technical")
