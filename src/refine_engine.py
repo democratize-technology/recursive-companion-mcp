@@ -78,8 +78,7 @@ class RefineEngine:
 
         critique_summary = "\n\n".join([f"Critique {i+1}: {c}" for i, c in enumerate(critiques)])
 
-        revision_prompt = (
-            f"""Given the original question, current response, and critiques, "
+        revision_prompt = f"""Given the original question, current response, and critiques, "
             "create an improved version.
 
 Original question: {prompt}
@@ -91,7 +90,6 @@ Critiques:
 
 Create an improved response that addresses these critiques while maintaining "
             "accuracy and clarity."""
-        )
 
         return await self.bedrock.generate_text(revision_prompt, system_prompt, temperature=0.6)
 

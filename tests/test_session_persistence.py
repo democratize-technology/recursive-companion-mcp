@@ -34,7 +34,7 @@ class TestSessionPersistenceManager:
     async def test_initialization(self, temp_storage):
         """Test persistence manager initialization"""
         manager = SessionPersistenceManager(storage_path=temp_storage)
-        
+
         assert manager.storage_path == Path(temp_storage)
         assert manager.storage_path.exists()
         assert manager.storage_path.is_dir()
@@ -42,9 +42,9 @@ class TestSessionPersistenceManager:
     @pytest.mark.asyncio
     async def test_default_storage_path(self):
         """Test default storage path creation"""
-        with patch.object(Path, 'mkdir') as mock_mkdir:
+        with patch.object(Path, "mkdir") as mock_mkdir:
             manager = SessionPersistenceManager()
-            
+
             expected_path = Path.home() / ".recursive-companion-mcp" / "sessions"
             assert manager.storage_path == expected_path
             mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
@@ -70,15 +70,15 @@ class TestSessionPersistenceManager:
             "error_message": None,
             "metadata": {"key": "value"},
         }
-        
+
         # Save session
         success = await persistence_manager.save_session(session_data)
         assert success is True
-        
+
         # Verify file was created
         file_path = persistence_manager._get_session_file_path("test-123")
         assert file_path.exists()
-        
+
         # Load session
         loaded_data = await persistence_manager.load_session("test-123")
         assert loaded_data is not None
@@ -102,17 +102,17 @@ class TestSessionPersistenceManager:
             "prompt": "Test",
             "status": "DRAFTING",
         }
-        
+
         # Save session
         await persistence_manager.save_session(session_data)
         file_path = persistence_manager._get_session_file_path("delete-test")
         assert file_path.exists()
-        
+
         # Delete session
         success = await persistence_manager.delete_session("delete-test")
         assert success is True
         assert not file_path.exists()
-        
+
         # Try to load deleted session
         result = await persistence_manager.load_session("delete-test")
         assert result is None
@@ -135,16 +135,16 @@ class TestSessionPersistenceManager:
             }
             await persistence_manager.save_session(session_data)
             await asyncio.sleep(0.01)  # Small delay to ensure different timestamps
-        
+
         # List sessions
         sessions = await persistence_manager.list_sessions()
-        
+
         assert len(sessions) == 3
         assert all("session_id" in s for s in sessions)
         assert all("file_path" in s for s in sessions)
         assert all("size_bytes" in s for s in sessions)
         assert all("modified_time" in s for s in sessions)
-        
+
         # Should be sorted by modification time (newest first)
         assert sessions[0]["session_id"] == "session-2"
         assert sessions[1]["session_id"] == "session-1"
@@ -160,12 +160,12 @@ class TestSessionPersistenceManager:
             "status": "CONVERGED",
         }
         await persistence_manager.save_session(old_session)
-        
+
         # Manually set old modification time
         old_path = persistence_manager._get_session_file_path("old-session")
         old_time = time.time() - (8 * 86400)  # 8 days ago
         os.utime(old_path, (old_time, old_time))
-        
+
         # Create recent session
         recent_session = {
             "session_id": "recent-session",
@@ -173,14 +173,14 @@ class TestSessionPersistenceManager:
             "status": "DRAFTING",
         }
         await persistence_manager.save_session(recent_session)
-        
+
         # Cleanup sessions older than 7 days
         await persistence_manager.cleanup_old_sessions(max_age_seconds=7 * 86400)
-        
+
         # Old session should be deleted
         assert not old_path.exists()
         assert await persistence_manager.load_session("old-session") is None
-        
+
         # Recent session should still exist
         recent_path = persistence_manager._get_session_file_path("recent-session")
         assert recent_path.exists()
@@ -190,7 +190,7 @@ class TestSessionPersistenceManager:
     async def test_concurrent_saves(self, persistence_manager):
         """Test concurrent saves to the same session"""
         session_id = "concurrent-test"
-        
+
         async def save_session(iteration):
             session_data = {
                 "session_id": session_id,
@@ -199,13 +199,13 @@ class TestSessionPersistenceManager:
                 "status": "DRAFTING",
             }
             return await persistence_manager.save_session(session_data)
-        
+
         # Save concurrently
         tasks = [save_session(i) for i in range(5)]
         results = await asyncio.gather(*tasks)
-        
+
         assert all(results)  # All saves should succeed
-        
+
         # Load and check final state
         loaded = await persistence_manager.load_session(session_id)
         assert loaded is not None
@@ -225,10 +225,10 @@ class TestSessionPersistenceManager:
             "convergence_score": 0.92,
             "model_config": {"temperature": 0.7},
         }
-        
+
         # Create snapshot
         snapshot = await persistence_manager.create_snapshot(session_data)
-        
+
         assert isinstance(snapshot, SessionSnapshot)
         assert snapshot.session_id == "snapshot-test"
         assert snapshot.state == "REVISING"
@@ -236,11 +236,11 @@ class TestSessionPersistenceManager:
         assert snapshot.draft == "Current draft"
         assert len(snapshot.critiques) == 1
         assert len(snapshot.revisions) == 2
-        
+
         # Save snapshot
         success = await persistence_manager.save_snapshot(snapshot)
         assert success is True
-        
+
         # Verify snapshot file exists
         snapshot_dir = persistence_manager.storage_path / "snapshots"
         assert snapshot_dir.exists()
@@ -262,9 +262,9 @@ class TestSessionPersistenceManager:
             "datetime": datetime.utcnow(),  # Should be converted to string
             "custom_object": Mock(),  # Should be converted to string
         }
-        
+
         serializable = persistence_manager._make_serializable(test_data)
-        
+
         assert serializable["string"] == "test"
         assert serializable["int"] == 42
         assert serializable["float"] == 3.14
@@ -274,7 +274,7 @@ class TestSessionPersistenceManager:
         assert serializable["dict"] == {"nested": "value"}
         assert isinstance(serializable["datetime"], str)
         assert isinstance(serializable["custom_object"], str)
-        
+
         # Should be JSON serializable
         json_str = json.dumps(serializable)
         assert json_str is not None
@@ -288,13 +288,13 @@ class TestSessionPersistenceManager:
             "status": "DRAFTING",
             "large_field": "x" * 1000,
         }
-        
+
         await persistence_manager.save_session(session_data)
-        
+
         size = await persistence_manager.get_session_size("size-test")
         assert size is not None
         assert size > 1000  # Should be at least 1KB
-        
+
         # Nonexistent session
         size = await persistence_manager.get_session_size("nonexistent")
         assert size is None
@@ -304,10 +304,10 @@ class TestSessionPersistenceManager:
         """Test handling of corrupt session files"""
         session_id = "corrupt-test"
         file_path = persistence_manager._get_session_file_path(session_id)
-        
+
         # Create corrupt file
         file_path.write_text("This is not valid JSON{]}")
-        
+
         # Try to load corrupt session
         result = await persistence_manager.load_session(session_id)
         assert result is None  # Should return None instead of crashing
@@ -316,25 +316,25 @@ class TestSessionPersistenceManager:
     async def test_atomic_writes(self, persistence_manager):
         """Test that writes are atomic using temp files"""
         session_id = "atomic-test"
-        
+
         # Mock to verify temp file usage
         original_write = persistence_manager._write_session_file
         temp_file_used = False
-        
+
         def mock_write(path, data):
             nonlocal temp_file_used
             if path.suffix == ".tmp":
                 temp_file_used = True
             return original_write(path, data)
-        
-        with patch.object(persistence_manager, '_write_session_file', mock_write):
+
+        with patch.object(persistence_manager, "_write_session_file", mock_write):
             session_data = {
                 "session_id": session_id,
                 "prompt": "Test",
                 "status": "DRAFTING",
             }
             await persistence_manager.save_session(session_data)
-        
+
         assert temp_file_used  # Verify temp file was used
 
     @pytest.mark.asyncio
@@ -345,7 +345,7 @@ class TestSessionPersistenceManager:
             "status": "DRAFTING",
             # Missing session_id
         }
-        
+
         success = await persistence_manager.save_session(session_data)
         assert success is False
 
@@ -356,21 +356,21 @@ class TestSessionPersistenceManager:
         readonly_dir = Path(temp_storage) / "readonly"
         readonly_dir.mkdir()
         readonly_dir.chmod(0o444)
-        
+
         try:
             manager = SessionPersistenceManager(storage_path=str(readonly_dir / "sessions"))
-            
+
             session_data = {
                 "session_id": "permission-test",
                 "prompt": "Test",
                 "status": "DRAFTING",
             }
-            
+
             # Should handle permission error gracefully
             success = await manager.save_session(session_data)
             # Might succeed or fail depending on OS, but shouldn't crash
             assert isinstance(success, bool)
-            
+
         finally:
             # Restore permissions for cleanup
             readonly_dir.chmod(0o755)

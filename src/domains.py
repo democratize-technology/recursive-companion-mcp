@@ -131,8 +131,7 @@ DOMAIN_PROMPTS: Dict[str, str] = {
         "and clear technical explanations."
     ),
     "marketing": (
-        "You are a marketing strategist. Focus on audience engagement, "
-        "brand messaging, and ROI."
+        "You are a marketing strategist. Focus on audience engagement, " "brand messaging, and ROI."
     ),
     "strategy": (
         "You are a strategic advisor. Focus on long-term vision, "
@@ -147,8 +146,7 @@ DOMAIN_PROMPTS: Dict[str, str] = {
         "financial metrics, and data-driven insights."
     ),
     "general": (
-        "You are a helpful assistant. Provide clear, accurate, "
-        "and well-structured responses."
+        "You are a helpful assistant. Provide clear, accurate, " "and well-structured responses."
     ),
 }
 

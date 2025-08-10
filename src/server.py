@@ -86,8 +86,7 @@ async def handle_list_tools() -> list[Tool]:
                     "session_id": {
                         "type": "string",
                         "description": (
-                            "The refinement session ID "
-                            "(optional, uses current if not provided)"
+                            "The refinement session ID " "(optional, uses current if not provided)"
                         ),
                     }
                 },

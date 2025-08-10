@@ -198,7 +198,9 @@ class TestIncrementalEngineEdgeCases:
 
         # Create session
         session = await engine.session_manager.create_session("Test prompt", "technical", {})
-        await engine.session_manager.update_session(session.session_id, status=RefinementStatus.DRAFTING)
+        await engine.session_manager.update_session(
+            session.session_id, status=RefinementStatus.DRAFTING
+        )
 
         # Mock generate_text to raise exception
         mock_bedrock.generate_text.side_effect = Exception("Network timeout")
@@ -244,7 +246,9 @@ class TestIncrementalEngineEdgeCases:
         engine = IncrementalRefineEngine(mock_bedrock, mock_detector, mock_validator)
 
         session = await engine.session_manager.create_session("Test prompt", "technical", {})
-        await engine.session_manager.update_session(session.session_id, status=RefinementStatus.DRAFTING)
+        await engine.session_manager.update_session(
+            session.session_id, status=RefinementStatus.DRAFTING
+        )
 
         mock_bedrock.generate_text.side_effect = Exception("Request timeout exceeded")
 

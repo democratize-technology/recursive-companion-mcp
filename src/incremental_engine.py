@@ -84,7 +84,9 @@ class SessionManager:
         self._persistence_enabled = True
         self._autosave_interval = 30  # seconds
 
-    async def create_session(self, prompt: str, domain: str, config: Dict[str, Any]) -> RefinementSession:
+    async def create_session(
+        self, prompt: str, domain: str, config: Dict[str, Any]
+    ) -> RefinementSession:
         """Create a new refinement session with persistence"""
         session_id = str(uuid.uuid4())
         session = RefinementSession(
@@ -98,11 +100,11 @@ class SessionManager:
             metadata=config,
         )
         self.sessions[session_id] = session
-        
+
         # Persist the new session
         if self._persistence_enabled:
             await self._persist_session(session)
-        
+
         return session
 
     async def get_session(self, session_id: str) -> Optional[RefinementSession]:
@@ -110,7 +112,7 @@ class SessionManager:
         # Check in-memory sessions first
         if session_id in self.sessions:
             return self.sessions[session_id]
-        
+
         # Try to load from persistence
         if self._persistence_enabled:
             session_data = await persistence_manager.load_session(session_id)
@@ -120,9 +122,9 @@ class SessionManager:
                     self.sessions[session_id] = session
                     logger.info(f"Session {session_id} restored from persistence")
                     return session
-        
+
         return None
-    
+
     async def _persist_session(self, session: RefinementSession) -> bool:
         """Persist a session to storage"""
         try:
@@ -131,7 +133,7 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Failed to persist session {session.session_id}: {e}")
             return False
-    
+
     def _serialize_session(self, session: RefinementSession) -> Dict[str, Any]:
         """Serialize session for persistence"""
         return {
@@ -152,7 +154,7 @@ class SessionManager:
             "error_message": session.error_message,
             "metadata": session.metadata,
         }
-    
+
     def _reconstruct_session(self, data: Dict[str, Any]) -> Optional[RefinementSession]:
         """Reconstruct a session from persisted data"""
         try:
@@ -186,7 +188,7 @@ class SessionManager:
                 if hasattr(session, key):
                     setattr(session, key, value)
             session.updated_at = datetime.utcnow()
-            
+
             # Persist updated session
             if self._persistence_enabled:
                 await self._persist_session(session)
@@ -202,7 +204,7 @@ class SessionManager:
                 if session_id not in self.sessions:
                     # Try to load the session
                     await self.get_session(session_id)
-        
+
         return [
             {
                 "session_id": s.session_id,
@@ -264,7 +266,9 @@ class IncrementalRefineEngine:
         config = config or {}
         session = await self.session_manager.create_session(prompt, domain, config)
 
-        await self.session_manager.update_session(session.session_id, status=RefinementStatus.DRAFTING)
+        await self.session_manager.update_session(
+            session.session_id, status=RefinementStatus.DRAFTING
+        )
 
         return {
             "success": True,
@@ -305,7 +309,9 @@ class IncrementalRefineEngine:
                 }
 
             if session.current_iteration >= session.max_iterations:
-                await self.session_manager.update_session(session_id, status=RefinementStatus.TIMEOUT)
+                await self.session_manager.update_session(
+                    session_id, status=RefinementStatus.TIMEOUT
+                )
                 return {
                     "success": True,
                     "status": "completed",
@@ -471,8 +477,7 @@ class IncrementalRefineEngine:
             [f"Critique {i+1}: {c}" for i, c in enumerate(session.critiques)]
         )
 
-        revision_prompt = (
-            f"""Given the original question, current response, and critiques, "
+        revision_prompt = f"""Given the original question, current response, and critiques, "
             "create an improved version.
 
 Original question: {session.prompt}
@@ -484,7 +489,6 @@ Critiques:
 
 Create an improved response that addresses these critiques while maintaining "
             "accuracy and clarity."""
-        )
 
         revision = await self.bedrock.generate_text(revision_prompt, system_prompt, temperature=0.6)
 

@@ -3,7 +3,7 @@ Security utilities for sanitizing sensitive information from logs and error mess
 """
 
 import re
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List
 
 
 class CredentialSanitizer:
@@ -20,9 +20,7 @@ class CredentialSanitizer:
             r"(?:aws_session_token|session_token|SessionToken)[\s=:]+[\"\']?([A-Za-z0-9+/=]{100,})[\"\']?",
             re.IGNORECASE,
         ),
-        "arn": re.compile(
-            r"arn:aws:iam::\d{12}:(?:user|role)/[^\s]+", re.IGNORECASE
-        ),
+        "arn": re.compile(r"arn:aws:iam::\d{12}:(?:user|role)/[^\s]+", re.IGNORECASE),
         "authorization_header": re.compile(
             r"(?:Authorization|X-Amz-Security-Token)[\s:]+[\"\']?([^\s\"\']+)[\"\']?",
             re.IGNORECASE,
@@ -61,11 +59,11 @@ class CredentialSanitizer:
     def sanitize_string(cls, text: str, replacement: str = "[REDACTED]") -> str:
         """
         Sanitize sensitive information from a string.
-        
+
         Args:
             text: String to sanitize
             replacement: Replacement text for sensitive data
-            
+
         Returns:
             Sanitized string
         """
@@ -73,7 +71,7 @@ class CredentialSanitizer:
             return text
 
         sanitized = text
-        
+
         # Apply all regex patterns
         for pattern_name, pattern in cls.PATTERNS.items():
             if pattern_name in ["aws_access_key", "arn"]:
@@ -84,11 +82,11 @@ class CredentialSanitizer:
                 sanitized = pattern.sub(
                     lambda m: m.group(0).replace(
                         m.group(1) if m.lastindex else m.group(0),
-                        f"[REDACTED_{pattern_name.upper()}]"
+                        f"[REDACTED_{pattern_name.upper()}]",
                     ),
-                    sanitized
+                    sanitized,
                 )
-        
+
         # Additional safety: redact any remaining long base64-like strings
         # that might be credentials
         sanitized = re.sub(
@@ -96,32 +94,28 @@ class CredentialSanitizer:
             "[REDACTED_POSSIBLE_CREDENTIAL]",
             sanitized,
         )
-        
+
         return sanitized
 
     @classmethod
-    def sanitize_dict(
-        cls, data: Dict[str, Any], max_depth: int = 10
-    ) -> Dict[str, Any]:
+    def sanitize_dict(cls, data: Dict[str, Any], max_depth: int = 10) -> Dict[str, Any]:
         """
         Recursively sanitize sensitive fields in a dictionary.
-        
+
         Args:
             data: Dictionary to sanitize
             max_depth: Maximum recursion depth
-            
+
         Returns:
             Sanitized dictionary
         """
         if max_depth <= 0:
             return {"error": "Max recursion depth reached"}
-        
+
         sanitized = {}
         for key, value in data.items():
             # Check if field name indicates sensitive data
-            if any(
-                sensitive in key.lower() for sensitive in cls.SENSITIVE_FIELDS
-            ):
+            if any(sensitive in key.lower() for sensitive in cls.SENSITIVE_FIELDS):
                 sanitized[key] = "[REDACTED]"
             elif isinstance(value, dict):
                 sanitized[key] = cls.sanitize_dict(value, max_depth - 1)
@@ -131,26 +125,24 @@ class CredentialSanitizer:
                 sanitized[key] = cls.sanitize_string(value)
             else:
                 sanitized[key] = value
-        
+
         return sanitized
 
     @classmethod
-    def sanitize_list(
-        cls, data: List[Any], max_depth: int = 10
-    ) -> List[Any]:
+    def sanitize_list(cls, data: List[Any], max_depth: int = 10) -> List[Any]:
         """
         Recursively sanitize sensitive data in a list.
-        
+
         Args:
             data: List to sanitize
             max_depth: Maximum recursion depth
-            
+
         Returns:
             Sanitized list
         """
         if max_depth <= 0:
             return ["[Max recursion depth reached]"]
-        
+
         sanitized = []
         for item in data:
             if isinstance(item, dict):
@@ -161,26 +153,26 @@ class CredentialSanitizer:
                 sanitized.append(cls.sanitize_string(item))
             else:
                 sanitized.append(item)
-        
+
         return sanitized
 
     @classmethod
     def sanitize_error(cls, error: Exception) -> str:
         """
         Sanitize an exception message and its string representation.
-        
+
         Args:
             error: Exception to sanitize
-            
+
         Returns:
             Sanitized error message
         """
         # Get the error message
         error_msg = str(error)
-        
+
         # Sanitize the message
         sanitized_msg = cls.sanitize_string(error_msg)
-        
+
         # Also check for sensitive data in exception attributes
         if hasattr(error, "__dict__"):
             for attr, value in error.__dict__.items():
@@ -188,17 +180,17 @@ class CredentialSanitizer:
                     value_sanitized = cls.sanitize_string(value)
                     if value != value_sanitized:
                         sanitized_msg = sanitized_msg.replace(value, value_sanitized)
-        
+
         return sanitized_msg
 
     @classmethod
     def sanitize_boto3_error(cls, error: Exception) -> Dict[str, Any]:
         """
         Sanitize boto3 client errors which often contain credentials.
-        
+
         Args:
             error: Boto3 ClientError exception
-            
+
         Returns:
             Sanitized error information
         """
@@ -206,30 +198,28 @@ class CredentialSanitizer:
             "error_type": error.__class__.__name__,
             "error_message": cls.sanitize_string(str(error)),
         }
-        
+
         # Handle boto3 ClientError specifically
         if hasattr(error, "response"):
             response = error.response
             if isinstance(response, dict):
                 # Sanitize the response metadata
                 sanitized_response = {}
-                
+
                 # Extract safe fields
                 if "Error" in response:
                     sanitized_response["Error"] = {
                         "Code": response["Error"].get("Code", "Unknown"),
-                        "Message": cls.sanitize_string(
-                            response["Error"].get("Message", "")
-                        ),
+                        "Message": cls.sanitize_string(response["Error"].get("Message", "")),
                     }
-                
+
                 if "ResponseMetadata" in response:
                     metadata = response["ResponseMetadata"]
                     sanitized_response["ResponseMetadata"] = {
                         "HTTPStatusCode": metadata.get("HTTPStatusCode"),
                         "RequestId": metadata.get("RequestId", "[REDACTED]"),
                     }
-                
+
                 result["response"] = sanitized_response
-        
+
         return result

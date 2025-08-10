@@ -18,10 +18,12 @@ class TestCredentialSanitizer:
         test_cases = [
             ("AKIAIOSFODNN7EXAMPLE", "[REDACTED_AWS_ACCESS_KEY]"),
             ("Error: ASIATESTACCESSKEY123", "Error: [REDACTED_AWS_ACCESS_KEY]"),
-            ("Multiple AKIATEST1234567890ABCD and ASIATEST9876543210EFGH", 
-             "Multiple [REDACTED_AWS_ACCESS_KEY] and [REDACTED_AWS_ACCESS_KEY]"),
+            (
+                "Multiple AKIATEST1234567890ABCD and ASIATEST9876543210EFGH",
+                "Multiple [REDACTED_AWS_ACCESS_KEY] and [REDACTED_AWS_ACCESS_KEY]",
+            ),
         ]
-        
+
         for input_text, expected_pattern in test_cases:
             result = CredentialSanitizer.sanitize_string(input_text)
             assert expected_pattern in result
@@ -31,12 +33,16 @@ class TestCredentialSanitizer:
     def test_sanitize_aws_secret_keys(self):
         """Test AWS secret key patterns are sanitized"""
         test_cases = [
-            ("aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-             "aws_secret_access_key=[REDACTED_AWS_SECRET_KEY]"),
-            ("SecretAccessKey: 'abcdefghij1234567890ABCDEFGHIJ1234567890'",
-             "SecretAccessKey: '[REDACTED_AWS_SECRET_KEY]'"),
+            (
+                "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+                "aws_secret_access_key=[REDACTED_AWS_SECRET_KEY]",
+            ),
+            (
+                "SecretAccessKey: 'abcdefghij1234567890ABCDEFGHIJ1234567890'",
+                "SecretAccessKey: '[REDACTED_AWS_SECRET_KEY]'",
+            ),
         ]
-        
+
         for input_text, expected_pattern in test_cases:
             result = CredentialSanitizer.sanitize_string(input_text)
             assert "REDACTED" in result
@@ -48,7 +54,7 @@ class TestCredentialSanitizer:
         long_token = "A" * 150  # Session tokens are typically very long
         test_input = f"aws_session_token={long_token}"
         result = CredentialSanitizer.sanitize_string(test_input)
-        
+
         assert "REDACTED" in result
         assert long_token not in result
 
@@ -58,7 +64,7 @@ class TestCredentialSanitizer:
             "arn:aws:iam::123456789012:user/TestUser",
             "arn:aws:iam::987654321098:role/TestRole",
         ]
-        
+
         for arn in test_cases:
             result = CredentialSanitizer.sanitize_string(f"Error with {arn}")
             assert "REDACTED_ARN" in result
@@ -70,12 +76,10 @@ class TestCredentialSanitizer:
     def test_sanitize_authorization_headers(self):
         """Test authorization header sanitization"""
         test_cases = [
-            ("Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", 
-             "Authorization"),
-            ("X-Amz-Security-Token: FQoGZXIvYXdzEBYaD", 
-             "X-Amz-Security-Token"),
+            ("Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "Authorization"),
+            ("X-Amz-Security-Token: FQoGZXIvYXdzEBYaD", "X-Amz-Security-Token"),
         ]
-        
+
         for input_text, header_name in test_cases:
             result = CredentialSanitizer.sanitize_string(input_text)
             assert "REDACTED" in result
@@ -89,7 +93,7 @@ class TestCredentialSanitizer:
             "apikey: xyz987654321ABCDEFGHIJKLMNOP",
             "API-KEY='super_secret_key_12345678'",
         ]
-        
+
         for test_input in test_cases:
             result = CredentialSanitizer.sanitize_string(test_input)
             assert "REDACTED" in result
@@ -109,9 +113,9 @@ class TestCredentialSanitizer:
             },
             "api_key": "sk_live_abcdef123456",
         }
-        
+
         result = CredentialSanitizer.sanitize_dict(test_dict)
-        
+
         assert result["message"] == "Error occurred"
         assert result["aws_access_key_id"] == "[REDACTED]"
         assert result["password"] == "[REDACTED]"
@@ -127,9 +131,9 @@ class TestCredentialSanitizer:
             {"password": "secret", "user": "admin"},
             ["nested", "api_key=test123"],
         ]
-        
+
         result = CredentialSanitizer.sanitize_list(test_list)
-        
+
         assert result[0] == "safe_string"
         assert "[REDACTED_AWS_ACCESS_KEY]" in result[1]
         assert result[2]["password"] == "[REDACTED]"
@@ -155,9 +159,9 @@ class TestCredentialSanitizer:
             },
             operation_name="GetUser",
         )
-        
+
         result = CredentialSanitizer.sanitize_boto3_error(error)
-        
+
         assert result["error_type"] == "ClientError"
         assert "REDACTED" in result["error_message"]
         assert "AKIAIOSFODNN7EXAMPLE" not in result["error_message"]
@@ -185,9 +189,9 @@ class TestCredentialSanitizer:
                 ],
             },
         }
-        
+
         result = CredentialSanitizer.sanitize_dict(complex_data)
-        
+
         assert result["level1"]["level2"]["level3"]["secret"] == "[REDACTED]"
         assert result["level1"]["level2"]["level3"]["credentials"]["access_key"] == "[REDACTED]"
         assert result["level1"]["level2"]["level3"]["credentials"]["secret_key"] == "[REDACTED]"
@@ -198,15 +202,15 @@ class TestCredentialSanitizer:
         """Test edge cases and boundary conditions"""
         # Empty string
         assert CredentialSanitizer.sanitize_string("") == ""
-        
+
         # None
         assert CredentialSanitizer.sanitize_string(None) is None
-        
+
         # Very long base64 string that might be credentials
         long_base64 = "A" * 100 + "="
         result = CredentialSanitizer.sanitize_string(long_base64)
         assert "REDACTED_POSSIBLE_CREDENTIAL" in result
-        
+
         # String with multiple credential types
         multi_cred = "AKIATEST123 and secret=abcd1234567890ABCD1234567890ABCD123456"
         result = CredentialSanitizer.sanitize_string(multi_cred)
@@ -216,7 +220,7 @@ class TestCredentialSanitizer:
         """Test protection against max recursion depth"""
         result = CredentialSanitizer.sanitize_dict({"test": "value"}, max_depth=0)
         assert result == {"error": "Max recursion depth reached"}
-        
+
         result = CredentialSanitizer.sanitize_list(["test"], max_depth=0)
         assert result == ["[Max recursion depth reached]"]
 
@@ -230,8 +234,8 @@ class TestCredentialSanitizer:
             "ApiKey": "key2",
             "api_key": "key3",
         }
-        
+
         result = CredentialSanitizer.sanitize_dict(test_dict)
-        
+
         for key in test_dict:
             assert result[key] == "[REDACTED]"

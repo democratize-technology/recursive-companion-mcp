@@ -7,7 +7,6 @@ import asyncio
 import hashlib
 import json
 import logging
-import re
 import sys
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
@@ -18,7 +17,7 @@ import numpy as np
 
 from config import config
 from security_utils import CredentialSanitizer
-from circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerOpenError, circuit_manager
+from circuit_breaker import CircuitBreakerConfig, CircuitBreakerOpenError, circuit_manager
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +37,7 @@ class BedrockClient:
         self._init_lock = asyncio.Lock()
         self._cache_hits = 0
         self._cache_misses = 0
-        
+
         # Initialize circuit breakers for different AWS operations
         breaker_config = CircuitBreakerConfig(
             failure_threshold=3,  # Open after 3 consecutive failures
@@ -46,23 +45,19 @@ class BedrockClient:
             timeout=30.0,  # Try half-open after 30 seconds
             failure_rate_threshold=0.5,  # Open if 50% of calls fail
             min_calls=5,  # Need at least 5 calls before evaluating rate
-            tracked_exceptions=(
-                Exception,  # Track all exceptions
-            ),
+            tracked_exceptions=(Exception,),  # Track all exceptions
             excluded_exceptions=(
                 KeyboardInterrupt,
                 SystemExit,
                 asyncio.CancelledError,
                 ValueError,  # Don't track validation errors
-            )
+            ),
         )
-        
+
         self._generation_breaker = circuit_manager.get_or_create(
             "bedrock_generation", breaker_config
         )
-        self._embedding_breaker = circuit_manager.get_or_create(
-            "bedrock_embedding", breaker_config
-        )
+        self._embedding_breaker = circuit_manager.get_or_create("bedrock_embedding", breaker_config)
 
     async def _ensure_initialized(self):
         """Ensure client is initialized (async lazy initialization)."""
@@ -113,21 +108,19 @@ class BedrockClient:
         """Synchronous model invocation for thread pool executor."""
         response = self.bedrock_runtime.invoke_model(modelId=model, body=json.dumps(body))
         return response
-    
+
     async def _invoke_model_with_circuit_breaker(self, model: str, body: dict) -> dict:
         """Invoke model with circuit breaker protection."""
         loop = asyncio.get_event_loop()
-        
+
         async def invoke():
-            return await loop.run_in_executor(
-                self._executor, self._invoke_model_sync, model, body
-            )
-        
+            return await loop.run_in_executor(self._executor, self._invoke_model_sync, model, body)
+
         # Fallback function returns None to indicate service unavailable
         async def fallback():
             logger.warning(f"Circuit breaker open for model {model}, returning fallback")
             return None
-        
+
         return await self._generation_breaker.call(invoke, fallback=fallback)
 
     async def generate_text(
@@ -170,14 +163,14 @@ class BedrockClient:
 
             # Use circuit breaker for protection against AWS failures
             response = await self._invoke_model_with_circuit_breaker(model, body)
-            
+
             # Check if circuit breaker returned fallback (None)
             if response is None:
                 raise CircuitBreakerOpenError(
-                    f"AWS Bedrock service unavailable (circuit breaker open). "
-                    f"Please try again in a few moments."
+                    "AWS Bedrock service unavailable (circuit breaker open). "
+                    "Please try again in a few moments."
                 )
-            
+
             response_body = json.loads(response["body"].read())
             return response_body["content"][0]["text"]
 
@@ -191,7 +184,9 @@ class BedrockClient:
             sanitized_error = CredentialSanitizer.sanitize_boto3_error(e)
             logger.error(f"Bedrock generation error: {sanitized_error}")
             # Re-raise with sanitized message to prevent credential leakage
-            raise RuntimeError(f"Generation failed: {sanitized_error.get('error_message', 'Unknown error')}")
+            raise RuntimeError(
+                f"Generation failed: {sanitized_error.get('error_message', 'Unknown error')}"
+            )
 
     def _get_embedding_uncached_sync(self, text: str) -> List[float]:
         """Synchronous embedding generation for executor."""
@@ -200,34 +195,34 @@ class BedrockClient:
         )
         response_body = json.loads(response["body"].read())
         return response_body["embedding"]
-    
+
     async def _get_embedding_uncached(self, text: str) -> Optional[List[float]]:
         """Get text embedding using Titan with circuit breaker protection."""
         try:
             loop = asyncio.get_event_loop()
-            
+
             async def get_embedding():
                 return await loop.run_in_executor(
                     self._executor, self._get_embedding_uncached_sync, text
                 )
-            
+
             # Fallback returns None if circuit is open
             async def fallback():
                 logger.warning("Embedding circuit breaker open, returning None")
                 return None
-            
+
             result = await self._embedding_breaker.call(get_embedding, fallback=fallback)
-            
+
             if result is None:
                 raise CircuitBreakerOpenError(
                     "AWS Bedrock embedding service unavailable (circuit breaker open)"
                 )
-            
+
             return result
 
         except CircuitBreakerOpenError:
             raise
-            
+
         except json.JSONDecodeError as e:
             sanitized_msg = CredentialSanitizer.sanitize_error(e)
             logger.error(f"Invalid JSON response from Bedrock: {sanitized_msg}")
@@ -237,7 +232,9 @@ class BedrockClient:
             # Sanitize error to prevent credential leakage
             sanitized_error = CredentialSanitizer.sanitize_boto3_error(e)
             logger.error(f"Embedding generation error: {sanitized_error}")
-            raise RuntimeError(f"Embedding failed: {sanitized_error.get('error_message', 'Unknown error')}")
+            raise RuntimeError(
+                f"Embedding failed: {sanitized_error.get('error_message', 'Unknown error')}"
+            )
 
     async def get_embedding(self, text: str) -> List[float]:
         """
@@ -261,7 +258,7 @@ class BedrockClient:
             return self._embedding_cache[text_hash]
 
         self._cache_misses += 1
-        
+
         # Ensure initialized before using
         await self._ensure_initialized()
 
@@ -270,20 +267,24 @@ class BedrockClient:
 
         # Calculate memory size of this embedding (float = 4 bytes typically)
         embedding_size = len(embedding) * 4 + sys.getsizeof(text_hash)
-        
+
         # Evict oldest entries if adding this would exceed memory limit
-        while (self._cache_memory_bytes + embedding_size > self._max_cache_memory_bytes 
-               and len(self._embedding_cache) > 0):
+        while (
+            self._cache_memory_bytes + embedding_size > self._max_cache_memory_bytes
+            and len(self._embedding_cache) > 0
+        ):
             # Remove least recently used (first item)
             oldest_key, oldest_embedding = self._embedding_cache.popitem(last=False)
             removed_size = len(oldest_embedding) * 4 + sys.getsizeof(oldest_key)
             self._cache_memory_bytes -= removed_size
-            logger.debug(f"Evicted cache entry to stay within memory limit. Cache size: {len(self._embedding_cache)}")
-        
+            logger.debug(
+                f"Evicted cache entry to stay within memory limit. Cache size: {len(self._embedding_cache)}"
+            )
+
         # Cache the result
         self._embedding_cache[text_hash] = embedding
         self._cache_memory_bytes += embedding_size
-        
+
         # Also respect the original count-based limit
         if len(self._embedding_cache) > config.embedding_cache_size:
             # Remove oldest entries
@@ -293,14 +294,14 @@ class BedrockClient:
                 self._cache_memory_bytes -= removed_size
 
         return embedding
-    
+
     def get_cache_hit_rate(self) -> float:
         """Get the cache hit rate for monitoring."""
         total = self._cache_hits + self._cache_misses
         if total == 0:
             return 0.0
         return self._cache_hits / total
-    
+
     def get_cache_stats(self) -> Dict[str, Any]:
         """Get comprehensive cache statistics."""
         return {
@@ -312,7 +313,7 @@ class BedrockClient:
             "memory_mb": self._cache_memory_bytes / (1024 * 1024),
             "max_memory_mb": self._max_cache_memory_bytes / (1024 * 1024),
         }
-    
+
     def get_circuit_breaker_stats(self) -> Dict[str, Any]:
         """Get circuit breaker statistics for monitoring."""
         return {
@@ -348,17 +349,17 @@ class BedrockClient:
         if hasattr(self, "_executor"):
             self._executor.shutdown(wait=True, cancel_futures=True)
             logger.info("Thread pool executor shut down cleanly")
-    
+
     async def __aenter__(self):
         """Async context manager entry."""
         await self._ensure_initialized()
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit - cleanup resources."""
         self.cleanup()
         return False
-    
+
     def __del__(self):
         """Fallback cleanup on deletion."""
         try:
