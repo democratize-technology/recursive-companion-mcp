@@ -90,16 +90,22 @@ class TestCircuitBreakerStates:
         async def success_func():
             return "success"
 
-        # 2 successes, 3 failures = 60% failure rate
+        # 2 successes, then failures until circuit opens
         await breaker.call(success_func)
         await breaker.call(success_func)
 
-        for _ in range(3):
+        # First 2 failures bring rate to 50%, opening the circuit
+        for _ in range(2):
             with pytest.raises(Exception):
                 await breaker.call(failing_func)
-
+        
+        # Circuit should now be open with 2/4 = 50% failure rate
         assert breaker.state == CircuitState.OPEN
-        assert breaker.stats.failure_rate() == 0.6
+        assert breaker.stats.failure_rate() == 0.5
+        
+        # Additional failure attempts should raise CircuitBreakerOpenError
+        with pytest.raises(CircuitBreakerOpenError):
+            await breaker.call(failing_func)
 
     @pytest.mark.asyncio
     async def test_circuit_stays_closed_below_threshold(self):

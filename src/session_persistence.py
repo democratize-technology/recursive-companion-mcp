@@ -50,12 +50,21 @@ class SessionPersistenceManager:
             self.storage_path = Path.home() / ".recursive-companion-mcp" / "sessions"
 
         # Create storage directory if it doesn't exist
-        self.storage_path.mkdir(parents=True, exist_ok=True)
+        try:
+            self.storage_path.mkdir(parents=True, exist_ok=True)
+            self._storage_available = True
+        except (PermissionError, OSError) as e:
+            logger.warning(f"Cannot create storage directory at {self.storage_path}: {e}")
+            logger.warning("Session persistence will be disabled for this session")
+            self._storage_available = False
 
         # Session write lock to prevent concurrent writes
         self._write_locks: Dict[str, asyncio.Lock] = {}
 
-        logger.info(f"Session persistence initialized at: {self.storage_path}")
+        if self._storage_available:
+            logger.info(f"Session persistence initialized at: {self.storage_path}")
+        else:
+            logger.warning("Session persistence disabled due to storage access issues")
 
     def _get_session_file_path(self, session_id: str) -> Path:
         """Get the file path for a session."""
@@ -78,6 +87,10 @@ class SessionPersistenceManager:
         Returns:
             True if saved successfully
         """
+        if not self._storage_available:
+            logger.debug("Storage not available, skipping save")
+            return False
+            
         session_id = session_data.get("session_id")
         if not session_id:
             logger.error("Cannot save session without session_id")
@@ -127,6 +140,9 @@ class SessionPersistenceManager:
         Returns:
             Session data if found, None otherwise
         """
+        if not self._storage_available:
+            return None
+            
         try:
             file_path = self._get_session_file_path(session_id)
 
@@ -160,6 +176,9 @@ class SessionPersistenceManager:
         Returns:
             True if deleted successfully
         """
+        if not self._storage_available:
+            return False
+            
         async with self._get_write_lock(session_id):
             try:
                 file_path = self._get_session_file_path(session_id)
@@ -186,6 +205,9 @@ class SessionPersistenceManager:
         Returns:
             List of session summaries
         """
+        if not self._storage_available:
+            return []
+            
         try:
             sessions = []
 

@@ -127,7 +127,7 @@ class TestBedrockClient:
             # Should raise ValueError with sanitized message
             with pytest.raises(ValueError) as exc_info:
                 await client._ensure_initialized()
-            assert "[REDACTED_ACCESS_KEY]" in str(exc_info.value)
+            assert "[REDACTED_AWS_ACCESS_KEY]" in str(exc_info.value)
             assert "AKIAIOSFODNN7EXAMPLE" not in str(exc_info.value)
 
     @pytest.mark.asyncio

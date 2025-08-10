@@ -11,7 +11,7 @@ class CredentialSanitizer:
 
     # Patterns for various AWS credential formats
     PATTERNS = {
-        "aws_access_key": re.compile(r"(?:AKIA|ASIA)[A-Z0-9]{16}", re.IGNORECASE),
+        "aws_access_key": re.compile(r"(?:AKIA|ASIA)[A-Z0-9]{7,}", re.IGNORECASE),
         "aws_secret_key": re.compile(
             r"(?:aws_secret_access_key|secret_key|SecretAccessKey)[\s=:]+[\"\']?([A-Za-z0-9+/]{40})[\"\']?",
             re.IGNORECASE,
@@ -29,7 +29,7 @@ class CredentialSanitizer:
             r"(?:Basic|Bearer)\s+([A-Za-z0-9+/]{20,}={0,2})", re.IGNORECASE
         ),
         "generic_api_key": re.compile(
-            r"(?:api[_-]?key|apikey|api_secret)[\s=:]+[\"\']?([A-Za-z0-9_\-]{20,})[\"\']?",
+            r"(?:api[_-]?key|apikey|api_secret)[\s=:]+[\"\']?([A-Za-z0-9_\-]+)[\"\']?",
             re.IGNORECASE,
         ),
     }
@@ -116,7 +116,14 @@ class CredentialSanitizer:
         for key, value in data.items():
             # Check if field name indicates sensitive data
             if any(sensitive in key.lower() for sensitive in cls.SENSITIVE_FIELDS):
-                sanitized[key] = "[REDACTED]"
+                # If the value is a dict or list, still recursively sanitize it
+                # but also check individual field names
+                if isinstance(value, dict):
+                    sanitized[key] = cls.sanitize_dict(value, max_depth - 1)
+                elif isinstance(value, list):
+                    sanitized[key] = cls.sanitize_list(value, max_depth - 1)
+                else:
+                    sanitized[key] = "[REDACTED]"
             elif isinstance(value, dict):
                 sanitized[key] = cls.sanitize_dict(value, max_depth - 1)
             elif isinstance(value, list):

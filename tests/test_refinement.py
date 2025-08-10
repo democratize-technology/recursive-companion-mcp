@@ -74,6 +74,8 @@ class TestSessionManager:
     async def test_cleanup_old_sessions(self):
         """Test cleanup of old sessions"""
         manager = SessionManager()
+        # Disable persistence for this test
+        manager._persistence_enabled = False
 
         # Create sessions
         session1 = await manager.create_session("Test1", "general", {})
@@ -171,7 +173,7 @@ class TestIncrementalRefineEngine:
         session_id = start_result["session_id"]
 
         # Manually set session to critiquing state
-        session = engine.session_manager.get_session(session_id)
+        session = await engine.session_manager.get_session(session_id)
         session.status = RefinementStatus.CRITIQUING
         session.current_draft = "Draft content"
 
@@ -197,7 +199,7 @@ class TestIncrementalRefineEngine:
         session_id = start_result["session_id"]
 
         # Manually set session to revising state
-        session = engine.session_manager.get_session(session_id)
+        session = await engine.session_manager.get_session(session_id)
         session.status = RefinementStatus.REVISING
         session.current_draft = "Draft content"
         session.critiques = ["Critique 1", "Critique 2"]
@@ -226,7 +228,7 @@ class TestIncrementalRefineEngine:
         session_id = start_result["session_id"]
 
         # Set some content
-        session = engine.session_manager.get_session(session_id)
+        session = await engine.session_manager.get_session(session_id)
         session.current_draft = "Partial content"
 
         # Abort refinement
@@ -237,7 +239,7 @@ class TestIncrementalRefineEngine:
         assert result["reason"] == "User requested abort"
 
         # Verify session status
-        session = engine.session_manager.get_session(session_id)
+        session = await engine.session_manager.get_session(session_id)
         assert session.status == RefinementStatus.ABORTED
 
     @pytest.mark.asyncio
@@ -257,7 +259,7 @@ class TestIncrementalRefineEngine:
         session_id = start_result["session_id"]
 
         # Set session to max iterations
-        session = engine.session_manager.get_session(session_id)
+        session = await engine.session_manager.get_session(session_id)
         session.current_iteration = session.max_iterations
         session.current_draft = "Final draft"
 
