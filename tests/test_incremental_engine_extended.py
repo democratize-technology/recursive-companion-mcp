@@ -124,10 +124,10 @@ class TestIncrementalEngineEdgeCases:
         engine = IncrementalRefineEngine(mock_bedrock, mock_detector, mock_validator)
 
         # Create a converged session
-        session = engine.session_manager.create_session(
+        session = await engine.session_manager.create_session(
             "Test prompt", "technical", {"max_iterations": 10}
         )
-        engine.session_manager.update_session(
+        await engine.session_manager.update_session(
             session.session_id,
             status=RefinementStatus.CONVERGED,
             current_draft="Final answer",
@@ -149,12 +149,12 @@ class TestIncrementalEngineEdgeCases:
         mock_validator = Mock(spec=SecurityValidator)
         engine = IncrementalRefineEngine(mock_bedrock, mock_detector, mock_validator)
 
-        session = engine.session_manager.create_session(
+        session = await engine.session_manager.create_session(
             "Test prompt", "technical", {"max_iterations": 3, "convergence_threshold": 0.98}
         )
 
         # Set session to max iterations
-        engine.session_manager.update_session(
+        await engine.session_manager.update_session(
             session.session_id,
             current_iteration=3,
             current_draft="Current draft",
@@ -179,7 +179,7 @@ class TestIncrementalEngineEdgeCases:
         mock_validator = Mock(spec=SecurityValidator)
         engine = IncrementalRefineEngine(mock_bedrock, mock_detector, mock_validator)
 
-        session = engine.session_manager.create_session("Test prompt", "technical", {})
+        session = await engine.session_manager.create_session("Test prompt", "technical", {})
 
         # Force an invalid status
         session.status = "INVALID_STATUS"
@@ -197,8 +197,8 @@ class TestIncrementalEngineEdgeCases:
         engine = IncrementalRefineEngine(mock_bedrock, mock_detector, mock_validator)
 
         # Create session
-        session = engine.session_manager.create_session("Test prompt", "technical", {})
-        engine.session_manager.update_session(session.session_id, status=RefinementStatus.DRAFTING)
+        session = await engine.session_manager.create_session("Test prompt", "technical", {})
+        await engine.session_manager.update_session(session.session_id, status=RefinementStatus.DRAFTING)
 
         # Mock generate_text to raise exception
         mock_bedrock.generate_text.side_effect = Exception("Network timeout")
@@ -217,8 +217,8 @@ class TestIncrementalEngineEdgeCases:
         mock_validator = Mock(spec=SecurityValidator)
         engine = IncrementalRefineEngine(mock_bedrock, mock_detector, mock_validator)
 
-        session = engine.session_manager.create_session("Test prompt", "technical", {})
-        engine.session_manager.update_session(
+        session = await engine.session_manager.create_session("Test prompt", "technical", {})
+        await engine.session_manager.update_session(
             session.session_id,
             status=RefinementStatus.REVISING,
             current_draft="Draft",
@@ -243,8 +243,8 @@ class TestIncrementalEngineEdgeCases:
         mock_validator = Mock(spec=SecurityValidator)
         engine = IncrementalRefineEngine(mock_bedrock, mock_detector, mock_validator)
 
-        session = engine.session_manager.create_session("Test prompt", "technical", {})
-        engine.session_manager.update_session(session.session_id, status=RefinementStatus.DRAFTING)
+        session = await engine.session_manager.create_session("Test prompt", "technical", {})
+        await engine.session_manager.update_session(session.session_id, status=RefinementStatus.DRAFTING)
 
         mock_bedrock.generate_text.side_effect = Exception("Request timeout exceeded")
 
@@ -273,12 +273,12 @@ class TestConvergenceMeasurement:
         mock_validator = Mock(spec=SecurityValidator)
         engine = IncrementalRefineEngine(mock_bedrock, mock_detector, mock_validator)
 
-        session = engine.session_manager.create_session(
+        session = await engine.session_manager.create_session(
             "Test prompt", "technical", {"convergence_threshold": 0.98}
         )
 
         # Setup for revision step
-        engine.session_manager.update_session(
+        await engine.session_manager.update_session(
             session.session_id,
             status=RefinementStatus.REVISING,
             current_draft="Current draft",
@@ -314,11 +314,11 @@ class TestConvergenceMeasurement:
         mock_validator = Mock(spec=SecurityValidator)
         engine = IncrementalRefineEngine(mock_bedrock, mock_detector, mock_validator)
 
-        session = engine.session_manager.create_session(
+        session = await engine.session_manager.create_session(
             "Test prompt", "technical", {"convergence_threshold": 0.98}
         )
 
-        engine.session_manager.update_session(
+        await engine.session_manager.update_session(
             session.session_id,
             status=RefinementStatus.REVISING,
             current_draft="Current draft",
@@ -352,11 +352,11 @@ class TestConvergenceMeasurement:
         mock_validator = Mock(spec=SecurityValidator)
         engine = IncrementalRefineEngine(mock_bedrock, mock_detector, mock_validator)
 
-        session = engine.session_manager.create_session(
+        session = await engine.session_manager.create_session(
             "Test prompt", "technical", {"convergence_threshold": 0.95}
         )
 
-        engine.session_manager.update_session(
+        await engine.session_manager.update_session(
             session.session_id,
             status=RefinementStatus.REVISING,
             current_draft="Current draft",
@@ -387,7 +387,7 @@ class TestSessionRetrieval:
     """Test session status and result retrieval"""
 
     @pytest.fixture
-    def engine_with_sessions(self):
+    async def engine_with_sessions(self):
         """Create engine with multiple test sessions"""
         client = Mock()
         mock_detector = Mock(spec=DomainDetector)
@@ -395,13 +395,13 @@ class TestSessionRetrieval:
         engine = IncrementalRefineEngine(client, mock_detector, mock_validator)
 
         # Create various sessions
-        active = engine.session_manager.create_session("Active", "general", {})
-        engine.session_manager.update_session(
+        active = await engine.session_manager.create_session("Active", "general", {})
+        await engine.session_manager.update_session(
             active.session_id, status=RefinementStatus.DRAFTING, current_draft="Draft in progress"
         )
 
-        converged = engine.session_manager.create_session("Converged", "technical", {})
-        engine.session_manager.update_session(
+        converged = await engine.session_manager.create_session("Converged", "technical", {})
+        await engine.session_manager.update_session(
             converged.session_id,
             status=RefinementStatus.CONVERGED,
             current_draft="Final answer",
@@ -409,8 +409,8 @@ class TestSessionRetrieval:
             current_iteration=5,
         )
 
-        aborted = engine.session_manager.create_session("Aborted", "marketing", {})
-        engine.session_manager.update_session(
+        aborted = await engine.session_manager.create_session("Aborted", "marketing", {})
+        await engine.session_manager.update_session(
             aborted.session_id,
             status=RefinementStatus.ABORTED,
             current_draft="Partially complete",
@@ -418,8 +418,8 @@ class TestSessionRetrieval:
             current_iteration=3,
         )
 
-        error = engine.session_manager.create_session("Error", "legal", {})
-        engine.session_manager.update_session(
+        error = await engine.session_manager.create_session("Error", "legal", {})
+        await engine.session_manager.update_session(
             error.session_id, status=RefinementStatus.ERROR, error_message="API limit exceeded"
         )
 
@@ -616,8 +616,8 @@ class TestAbortRefinement:
         mock_validator = Mock(spec=SecurityValidator)
         engine = IncrementalRefineEngine(mock_bedrock, mock_detector, mock_validator)
 
-        session = engine.session_manager.create_session("Test prompt", "technical", {})
-        engine.session_manager.update_session(
+        session = await engine.session_manager.create_session("Test prompt", "technical", {})
+        await engine.session_manager.update_session(
             session.session_id,
             status=RefinementStatus.CRITIQUING,
             current_draft="Current work in progress",
@@ -635,7 +635,7 @@ class TestAbortRefinement:
         assert result["reason"] == "User requested abort"
 
         # Verify session was updated
-        updated = engine.session_manager.get_session(session.session_id)
+        updated = await engine.session_manager.get_session(session.session_id)
         assert updated.status == RefinementStatus.ABORTED
 
     @pytest.mark.asyncio
@@ -645,8 +645,8 @@ class TestAbortRefinement:
         mock_validator = Mock(spec=SecurityValidator)
         engine = IncrementalRefineEngine(mock_bedrock, mock_detector, mock_validator)
 
-        session = engine.session_manager.create_session("Test prompt", "technical", {})
-        engine.session_manager.update_session(
+        session = await engine.session_manager.create_session("Test prompt", "technical", {})
+        await engine.session_manager.update_session(
             session.session_id,
             status=RefinementStatus.CONVERGED,
             current_draft="Final answer",

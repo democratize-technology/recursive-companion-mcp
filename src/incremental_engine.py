@@ -9,8 +9,12 @@ from typing import Dict, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+import logging
 
 from domains import get_domain_system_prompt
+from session_persistence import persistence_manager
+
+logger = logging.getLogger(__name__)
 
 
 class RefinementStatus(Enum):
@@ -72,14 +76,16 @@ class RefinementSession:
 
 
 class SessionManager:
-    """Manages refinement sessions"""
+    """Manages refinement sessions with persistence support"""
 
     def __init__(self):
         self.sessions: Dict[str, RefinementSession] = {}
         self._cleanup_task = None
+        self._persistence_enabled = True
+        self._autosave_interval = 30  # seconds
 
-    def create_session(self, prompt: str, domain: str, config: Dict[str, Any]) -> RefinementSession:
-        """Create a new refinement session"""
+    async def create_session(self, prompt: str, domain: str, config: Dict[str, Any]) -> RefinementSession:
+        """Create a new refinement session with persistence"""
         session_id = str(uuid.uuid4())
         session = RefinementSession(
             session_id=session_id,
@@ -92,24 +98,111 @@ class SessionManager:
             metadata=config,
         )
         self.sessions[session_id] = session
+        
+        # Persist the new session
+        if self._persistence_enabled:
+            await self._persist_session(session)
+        
         return session
 
-    def get_session(self, session_id: str) -> Optional[RefinementSession]:
-        """Get a session by ID"""
-        return self.sessions.get(session_id)
+    async def get_session(self, session_id: str) -> Optional[RefinementSession]:
+        """Get a session by ID, loading from persistence if needed"""
+        # Check in-memory sessions first
+        if session_id in self.sessions:
+            return self.sessions[session_id]
+        
+        # Try to load from persistence
+        if self._persistence_enabled:
+            session_data = await persistence_manager.load_session(session_id)
+            if session_data:
+                session = self._reconstruct_session(session_data)
+                if session:
+                    self.sessions[session_id] = session
+                    logger.info(f"Session {session_id} restored from persistence")
+                    return session
+        
+        return None
+    
+    async def _persist_session(self, session: RefinementSession) -> bool:
+        """Persist a session to storage"""
+        try:
+            session_data = self._serialize_session(session)
+            return await persistence_manager.save_session(session_data)
+        except Exception as e:
+            logger.error(f"Failed to persist session {session.session_id}: {e}")
+            return False
+    
+    def _serialize_session(self, session: RefinementSession) -> Dict[str, Any]:
+        """Serialize session for persistence"""
+        return {
+            "session_id": session.session_id,
+            "prompt": session.prompt,
+            "domain": session.domain,
+            "status": session.status.value,
+            "current_iteration": session.current_iteration,
+            "max_iterations": session.max_iterations,
+            "convergence_threshold": session.convergence_threshold,
+            "current_draft": session.current_draft,
+            "previous_draft": session.previous_draft,
+            "critiques": session.critiques,
+            "convergence_score": session.convergence_score,
+            "iterations_history": session.iterations_history,
+            "created_at": session.created_at.isoformat(),
+            "updated_at": session.updated_at.isoformat(),
+            "error_message": session.error_message,
+            "metadata": session.metadata,
+        }
+    
+    def _reconstruct_session(self, data: Dict[str, Any]) -> Optional[RefinementSession]:
+        """Reconstruct a session from persisted data"""
+        try:
+            return RefinementSession(
+                session_id=data["session_id"],
+                prompt=data["prompt"],
+                domain=data["domain"],
+                status=RefinementStatus(data["status"]),
+                current_iteration=data["current_iteration"],
+                max_iterations=data["max_iterations"],
+                convergence_threshold=data["convergence_threshold"],
+                current_draft=data.get("current_draft", ""),
+                previous_draft=data.get("previous_draft", ""),
+                critiques=data.get("critiques", []),
+                convergence_score=data.get("convergence_score", 0.0),
+                iterations_history=data.get("iterations_history", []),
+                created_at=datetime.fromisoformat(data["created_at"]),
+                updated_at=datetime.fromisoformat(data["updated_at"]),
+                error_message=data.get("error_message"),
+                metadata=data.get("metadata", {}),
+            )
+        except Exception as e:
+            logger.error(f"Failed to reconstruct session: {e}")
+            return None
 
-    def update_session(self, session_id: str, **updates) -> Optional[RefinementSession]:
-        """Update a session"""
-        session = self.sessions.get(session_id)
+    async def update_session(self, session_id: str, **updates) -> Optional[RefinementSession]:
+        """Update a session with persistence"""
+        session = await self.get_session(session_id)
         if session:
             for key, value in updates.items():
                 if hasattr(session, key):
                     setattr(session, key, value)
             session.updated_at = datetime.utcnow()
+            
+            # Persist updated session
+            if self._persistence_enabled:
+                await self._persist_session(session)
         return session
 
-    def list_active_sessions(self) -> list:
-        """List all active sessions"""
+    async def list_active_sessions(self) -> list:
+        """List all active sessions, including persisted ones"""
+        # First get persisted sessions
+        if self._persistence_enabled:
+            persisted = await persistence_manager.list_sessions()
+            for session_info in persisted[:10]:  # Load max 10 most recent
+                session_id = session_info["session_id"]
+                if session_id not in self.sessions:
+                    # Try to load the session
+                    await self.get_session(session_id)
+        
         return [
             {
                 "session_id": s.session_id,
@@ -122,7 +215,7 @@ class SessionManager:
             for s in self.sessions.values()
         ]
 
-    def cleanup_old_sessions(self, max_age_minutes: int = 30):
+    async def cleanup_old_sessions(self, max_age_minutes: int = 30):
         """Remove sessions older than max_age_minutes"""
         now = datetime.utcnow()
         to_remove = []
@@ -169,9 +262,9 @@ class IncrementalRefineEngine:
             domain = self.domain_detector.detect_domain(prompt)
 
         config = config or {}
-        session = self.session_manager.create_session(prompt, domain, config)
+        session = await self.session_manager.create_session(prompt, domain, config)
 
-        self.session_manager.update_session(session.session_id, status=RefinementStatus.DRAFTING)
+        await self.session_manager.update_session(session.session_id, status=RefinementStatus.DRAFTING)
 
         return {
             "success": True,
@@ -184,9 +277,9 @@ class IncrementalRefineEngine:
 
     async def continue_refinement(self, session_id: str) -> Dict[str, Any]:
         """Continue refinement for one iteration - returns quickly"""
-        session = self.session_manager.get_session(session_id)
+        session = await self.session_manager.get_session(session_id)
         if not session:
-            active_sessions = self.session_manager.list_active_sessions()
+            active_sessions = await self.session_manager.list_active_sessions()
             return {
                 "success": False,
                 "error": "Session not found",
@@ -212,7 +305,7 @@ class IncrementalRefineEngine:
                 }
 
             if session.current_iteration >= session.max_iterations:
-                self.session_manager.update_session(session_id, status=RefinementStatus.TIMEOUT)
+                await self.session_manager.update_session(session_id, status=RefinementStatus.TIMEOUT)
                 return {
                     "success": True,
                     "status": "completed",
@@ -243,7 +336,7 @@ class IncrementalRefineEngine:
             return result
 
         except Exception as e:
-            self.session_manager.update_session(
+            await self.session_manager.update_session(
                 session_id, status=RefinementStatus.ERROR, error_message=str(e)
             )
 
@@ -281,7 +374,7 @@ class IncrementalRefineEngine:
 
         draft = await self.bedrock.generate_text(draft_prompt, system_prompt)
 
-        self.session_manager.update_session(
+        await self.session_manager.update_session(
             session.session_id,
             current_draft=draft,
             current_iteration=1,
@@ -344,7 +437,7 @@ class IncrementalRefineEngine:
         critiques = await asyncio.gather(*critique_tasks, return_exceptions=True)
         valid_critiques = [c for c in critiques if isinstance(c, str)]
 
-        self.session_manager.update_session(
+        await self.session_manager.update_session(
             session.session_id, critiques=valid_critiques, status=RefinementStatus.REVISING
         )
 
@@ -400,7 +493,7 @@ Create an improved response that addresses these critiques while maintaining "
         previous_embedding = await self.bedrock.get_embedding(session.current_draft)
         convergence_score = self._cosine_similarity(previous_embedding, current_embedding)
 
-        self.session_manager.update_session(
+        await self.session_manager.update_session(
             session.session_id,
             previous_draft=session.current_draft,
             current_draft=revision,
@@ -419,7 +512,7 @@ Create an improved response that addresses these critiques while maintaining "
 
         # Check if converged
         if convergence_score >= session.convergence_threshold:
-            self.session_manager.update_session(
+            await self.session_manager.update_session(
                 session.session_id, status=RefinementStatus.CONVERGED
             )
 
@@ -446,7 +539,7 @@ Create an improved response that addresses these critiques while maintaining "
             }
         else:
             # Continue refining
-            self.session_manager.update_session(
+            await self.session_manager.update_session(
                 session.session_id, status=RefinementStatus.CRITIQUING
             )
 
@@ -482,9 +575,9 @@ Create an improved response that addresses these critiques while maintaining "
 
     async def get_status(self, session_id: str) -> Dict[str, Any]:
         """Get current status of a refinement session"""
-        session = self.session_manager.get_session(session_id)
+        session = await self.session_manager.get_session(session_id)
         if not session:
-            active_sessions = self.session_manager.list_active_sessions()
+            active_sessions = await self.session_manager.list_active_sessions()
             return {
                 "success": False,
                 "error": "Session not found",
@@ -515,9 +608,9 @@ Create an improved response that addresses these critiques while maintaining "
 
     async def get_final_result(self, session_id: str) -> Dict[str, Any]:
         """Get the final refined result"""
-        session = self.session_manager.get_session(session_id)
+        session = await self.session_manager.get_session(session_id)
         if not session:
-            active_sessions = self.session_manager.list_active_sessions()
+            active_sessions = await self.session_manager.list_active_sessions()
             return {
                 "success": False,
                 "error": "Session not found",
@@ -571,9 +664,9 @@ Create an improved response that addresses these critiques while maintaining "
 
     async def abort_refinement(self, session_id: str) -> Dict[str, Any]:
         """Stop refinement and return best result so far"""
-        session = self.session_manager.get_session(session_id)
+        session = await self.session_manager.get_session(session_id)
         if not session:
-            active_sessions = self.session_manager.list_active_sessions()
+            active_sessions = await self.session_manager.list_active_sessions()
             return {
                 "success": False,
                 "error": "Session not found",
@@ -604,7 +697,7 @@ Create an improved response that addresses these critiques while maintaining "
             }
 
         # Mark as aborted
-        self.session_manager.update_session(session_id, status=RefinementStatus.ABORTED)
+        await self.session_manager.update_session(session_id, status=RefinementStatus.ABORTED)
 
         return {
             "success": True,

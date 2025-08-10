@@ -31,10 +31,10 @@ from incremental_engine import (
 class TestSessionManager:
     """Test session management functionality"""
 
-    def test_create_session(self):
+    async def test_create_session(self):
         """Test creating a new session"""
         manager = SessionManager()
-        session = manager.create_session(
+        session = await manager.create_session(
             prompt="Test prompt",
             domain="technical",
             config={"max_iterations": 5, "convergence_threshold": 0.95},
@@ -47,37 +47,37 @@ class TestSessionManager:
         assert session.max_iterations == 5
         assert session.convergence_threshold == 0.95
 
-    def test_get_session(self):
+    async def test_get_session(self):
         """Test retrieving a session by ID"""
         manager = SessionManager()
-        session = manager.create_session("Test", "general", {})
+        session = await manager.create_session("Test", "general", {})
 
-        retrieved = manager.get_session(session.session_id)
+        retrieved = await manager.get_session(session.session_id)
         assert retrieved == session
 
         # Non-existent session
-        assert manager.get_session("fake-id") is None
+        assert await manager.get_session("fake-id") is None
 
-    def test_update_session(self):
+    async def test_update_session(self):
         """Test updating session attributes"""
         manager = SessionManager()
-        session = manager.create_session("Test", "general", {})
+        session = await manager.create_session("Test", "general", {})
 
-        manager.update_session(
+        await manager.update_session(
             session.session_id, status=RefinementStatus.DRAFTING, current_draft="Draft content"
         )
 
-        updated = manager.get_session(session.session_id)
+        updated = await manager.get_session(session.session_id)
         assert updated.status == RefinementStatus.DRAFTING
         assert updated.current_draft == "Draft content"
 
-    def test_cleanup_old_sessions(self):
+    async def test_cleanup_old_sessions(self):
         """Test cleanup of old sessions"""
         manager = SessionManager()
 
         # Create sessions
-        session1 = manager.create_session("Test1", "general", {})
-        session2 = manager.create_session("Test2", "general", {})
+        session1 = await manager.create_session("Test1", "general", {})
+        session2 = await manager.create_session("Test2", "general", {})
 
         # Mock old creation time for session1
         from datetime import timedelta
@@ -86,11 +86,11 @@ class TestSessionManager:
         manager.sessions[session1.session_id] = session1
 
         # Cleanup sessions older than 30 minutes
-        removed = manager.cleanup_old_sessions(max_age_minutes=30)
+        removed = await manager.cleanup_old_sessions(max_age_minutes=30)
 
         assert removed == 1
-        assert manager.get_session(session1.session_id) is None
-        assert manager.get_session(session2.session_id) is not None
+        assert await manager.get_session(session1.session_id) is None
+        assert await manager.get_session(session2.session_id) is not None
 
 
 class TestIncrementalRefineEngine:

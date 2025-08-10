@@ -48,18 +48,19 @@ class TestBedrockClientUnit:
 
     def test_sanitize_error_message(self):
         """Test error message sanitization"""
-        client = BedrockClient()
+        from security_utils import CredentialSanitizer
 
         # Test access key redaction
         msg = "Error with AKIAIOSFODNN7EXAMPLE key"
-        sanitized = client._sanitize_error_message(msg)
-        assert "[REDACTED_ACCESS_KEY]" in sanitized
+        sanitized = CredentialSanitizer.sanitize_string(msg)
+        assert "[REDACTED_AWS_ACCESS_KEY]" in sanitized
         assert "AKIAIOSFODNN7EXAMPLE" not in sanitized
 
         # Test secret key redaction
-        msg = "Secret: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
-        sanitized = client._sanitize_error_message(msg)
-        assert "[REDACTED_SECRET]" in sanitized
+        msg = "aws_secret_access_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+        sanitized = CredentialSanitizer.sanitize_string(msg)
+        assert "[REDACTED" in sanitized
+        assert "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" not in sanitized
 
     def test_cosine_similarity_edge_cases(self):
         """Test cosine similarity with edge cases"""

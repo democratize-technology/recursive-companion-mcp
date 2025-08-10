@@ -32,8 +32,8 @@ class TestAbortRefinementComplete:
     async def test_abort_with_no_content(self, engine):
         """Test aborting session with no content generated"""
         # Create session with no drafts
-        session = engine.session_manager.create_session("Test prompt", "technical", {})
-        engine.session_manager.update_session(
+        session = await engine.session_manager.create_session("Test prompt", "technical", {})
+        await engine.session_manager.update_session(
             session.session_id,
             status=RefinementStatus.INITIALIZING,
             current_draft=None,
@@ -51,8 +51,8 @@ class TestAbortRefinementComplete:
     @pytest.mark.asyncio
     async def test_abort_with_previous_draft_only(self, engine):
         """Test aborting when only previous draft exists"""
-        session = engine.session_manager.create_session("Test prompt", "technical", {})
-        engine.session_manager.update_session(
+        session = await engine.session_manager.create_session("Test prompt", "technical", {})
+        await engine.session_manager.update_session(
             session.session_id,
             status=RefinementStatus.CRITIQUING,
             current_draft=None,
@@ -69,8 +69,8 @@ class TestAbortRefinementComplete:
     @pytest.mark.asyncio
     async def test_abort_with_current_draft(self, engine):
         """Test aborting with current draft available"""
-        session = engine.session_manager.create_session("Test prompt", "technical", {})
-        engine.session_manager.update_session(
+        session = await engine.session_manager.create_session("Test prompt", "technical", {})
+        await engine.session_manager.update_session(
             session.session_id,
             status=RefinementStatus.REVISING,
             current_draft="Current draft content",
@@ -87,15 +87,15 @@ class TestAbortRefinementComplete:
         assert result["convergence_score"] == 0.75
 
         # Verify session status was updated
-        updated = engine.session_manager.get_session(session.session_id)
+        updated = await engine.session_manager.get_session(session.session_id)
         assert updated.status == RefinementStatus.ABORTED
 
     @pytest.mark.asyncio
     async def test_abort_nonexistent_session_detailed(self, engine):
         """Test aborting non-existent session with active sessions"""
         # Create some active sessions
-        engine.session_manager.create_session("Test1", "general", {})
-        engine.session_manager.create_session("Test2", "technical", {})
+        await engine.session_manager.create_session("Test1", "general", {})
+        await engine.session_manager.create_session("Test2", "technical", {})
 
         result = await engine.abort_refinement("fake-session-id")
 
