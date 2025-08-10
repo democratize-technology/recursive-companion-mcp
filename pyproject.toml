@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Jeremy Green", email = "jeremy@example.com"},
+    {name = "Recursive Companion Contributors", email = "contact@example.com"},
 ]
 dependencies = [
     "mcp>=0.1.0",
@@ -28,7 +28,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "moto>=4.0.0",
     "flake8>=6.0.0",
-    "black>=23.0.0",
+    "black>=24.3.0",
 ]
 
 [tool.black]
