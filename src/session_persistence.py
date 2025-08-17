@@ -90,7 +90,7 @@ class SessionPersistenceManager:
         if not self._storage_available:
             logger.debug("Storage not available, skipping save")
             return False
-            
+
         session_id = session_data.get("session_id")
         if not session_id:
             logger.error("Cannot save session without session_id")
@@ -142,7 +142,7 @@ class SessionPersistenceManager:
         """
         if not self._storage_available:
             return None
-            
+
         try:
             file_path = self._get_session_file_path(session_id)
 
@@ -178,7 +178,7 @@ class SessionPersistenceManager:
         """
         if not self._storage_available:
             return False
-            
+
         async with self._get_write_lock(session_id):
             try:
                 file_path = self._get_session_file_path(session_id)
@@ -207,7 +207,7 @@ class SessionPersistenceManager:
         """
         if not self._storage_available:
             return []
-            
+
         try:
             sessions = []
 

@@ -320,7 +320,6 @@ class BedrockClient:
             "embedding": self._embedding_breaker.get_stats(),
         }
 
-
     def cleanup(self):
         """Explicit cleanup method for resources."""
         if hasattr(self, "_executor"):

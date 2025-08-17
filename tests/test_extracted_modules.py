@@ -65,6 +65,7 @@ class TestBedrockClientUnit:
     def test_cosine_similarity_edge_cases(self):
         """Test cosine similarity with edge cases"""
         from convergence import ConvergenceDetector
+
         detector = ConvergenceDetector()
 
         # Zero vectors

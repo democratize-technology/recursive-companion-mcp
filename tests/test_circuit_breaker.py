@@ -98,11 +98,11 @@ class TestCircuitBreakerStates:
         for _ in range(2):
             with pytest.raises(Exception):
                 await breaker.call(failing_func)
-        
+
         # Circuit should now be open with 2/4 = 50% failure rate
         assert breaker.state == CircuitState.OPEN
         assert breaker.stats.failure_rate() == 0.5
-        
+
         # Additional failure attempts should raise CircuitBreakerOpenError
         with pytest.raises(CircuitBreakerOpenError):
             await breaker.call(failing_func)

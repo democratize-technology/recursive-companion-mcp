@@ -13,7 +13,7 @@ import logging
 
 from domains import get_domain_system_prompt
 from session_persistence import persistence_manager
-from convergence import ConvergenceDetector, ConvergenceConfig
+from convergence import ConvergenceDetector
 
 logger = logging.getLogger(__name__)
 
@@ -497,7 +497,9 @@ Create an improved response that addresses these critiques while maintaining "
         # Calculate convergence
         current_embedding = await self.bedrock.get_embedding(revision)
         previous_embedding = await self.bedrock.get_embedding(session.current_draft)
-        convergence_score = self.convergence_detector.cosine_similarity(previous_embedding, current_embedding)
+        convergence_score = self.convergence_detector.cosine_similarity(
+            previous_embedding, current_embedding
+        )
 
         await self.session_manager.update_session(
             session.session_id,
@@ -771,7 +773,6 @@ Create an improved response that addresses these critiques while maintaining "
         import os
 
         return os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-sonnet-20240229-v1:0")
-
 
     def _get_domain_system_prompt(self, domain: str) -> str:
         """Get domain-specific system prompt"""

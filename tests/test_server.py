@@ -270,6 +270,7 @@ class TestRefineEngine:
     def test_cosine_similarity(self, mock_bedrock_client):
         # Test cosine similarity using ConvergenceDetector
         from convergence import ConvergenceDetector
+
         detector = ConvergenceDetector()
 
         # Test identical vectors
