@@ -268,20 +268,21 @@ class TestRefineEngine:
         return client
 
     def test_cosine_similarity(self, mock_bedrock_client):
-        # Test cosine similarity directly on BedrockClient
-        client = BedrockClient()
+        # Test cosine similarity using ConvergenceDetector
+        from convergence import ConvergenceDetector
+        detector = ConvergenceDetector()
 
         # Test identical vectors
         vec1 = [1.0, 0.0, 0.0]
-        assert client.calculate_cosine_similarity(vec1, vec1) == 1.0
+        assert detector.cosine_similarity(vec1, vec1) == 1.0
 
         # Test orthogonal vectors
         vec2 = [0.0, 1.0, 0.0]
-        assert abs(client.calculate_cosine_similarity(vec1, vec2)) < 0.001
+        assert abs(detector.cosine_similarity(vec1, vec2)) < 0.001
 
         # Test similar vectors
         vec3 = [0.9, 0.1, 0.0]
-        similarity = client.calculate_cosine_similarity(vec1, vec3)
+        similarity = detector.cosine_similarity(vec1, vec3)
         assert 0.9 < similarity < 1.0
 
     @pytest.mark.asyncio
@@ -308,8 +309,7 @@ class TestRefineEngine:
         ]
         mock_bedrock_client.get_embedding.side_effect = embeddings
 
-        # Mock cosine similarity for convergence
-        mock_bedrock_client.calculate_cosine_similarity.return_value = 0.99
+        # Convergence is now handled internally by ConvergenceDetector
 
         engine = RefineEngine(mock_bedrock_client)
         result = await engine.refine("Test prompt", "technical")

@@ -13,6 +13,7 @@ import logging
 
 from domains import get_domain_system_prompt
 from session_persistence import persistence_manager
+from convergence import ConvergenceDetector, ConvergenceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -240,6 +241,7 @@ class IncrementalRefineEngine:
         self.domain_detector = domain_detector
         self.validator = validator
         self.session_manager = SessionManager()
+        self.convergence_detector = ConvergenceDetector()
 
     async def start_refinement(
         self, prompt: str, domain: str = "auto", config: Optional[Dict] = None
@@ -495,7 +497,7 @@ Create an improved response that addresses these critiques while maintaining "
         # Calculate convergence
         current_embedding = await self.bedrock.get_embedding(revision)
         previous_embedding = await self.bedrock.get_embedding(session.current_draft)
-        convergence_score = self._cosine_similarity(previous_embedding, current_embedding)
+        convergence_score = self.convergence_detector.cosine_similarity(previous_embedding, current_embedding)
 
         await self.session_manager.update_session(
             session.session_id,
@@ -770,21 +772,6 @@ Create an improved response that addresses these critiques while maintaining "
 
         return os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-sonnet-20240229-v1:0")
 
-    def _cosine_similarity(self, vec1: list, vec2: list) -> float:
-        """Calculate cosine similarity between two vectors"""
-        import numpy as np
-
-        vec1_np = np.array(vec1)
-        vec2_np = np.array(vec2)
-
-        dot_product = np.dot(vec1_np, vec2_np)
-        norm1 = np.linalg.norm(vec1_np)
-        norm2 = np.linalg.norm(vec2_np)
-
-        if norm1 == 0 or norm2 == 0:
-            return 0.0
-
-        return float(dot_product / (norm1 * norm2))
 
     def _get_domain_system_prompt(self, domain: str) -> str:
         """Get domain-specific system prompt"""

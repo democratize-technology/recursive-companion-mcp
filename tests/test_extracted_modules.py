@@ -64,13 +64,14 @@ class TestBedrockClientUnit:
 
     def test_cosine_similarity_edge_cases(self):
         """Test cosine similarity with edge cases"""
-        client = BedrockClient()
+        from convergence import ConvergenceDetector
+        detector = ConvergenceDetector()
 
         # Zero vectors
-        assert client.calculate_cosine_similarity([0, 0], [0, 0]) == 0.0
+        assert detector.cosine_similarity([0, 0], [0, 0]) == 0.0
 
         # One zero vector
-        assert client.calculate_cosine_similarity([1, 0], [0, 0]) == 0.0
+        assert detector.cosine_similarity([1, 0], [0, 0]) == 0.0
 
     @pytest.mark.asyncio
     async def test_embedding_cache_management(self):

@@ -12,6 +12,7 @@ from config import config
 from domains import DomainDetector, get_domain_system_prompt
 from session_manager import RefinementIteration, RefinementResult
 from validation import SecurityValidator
+from convergence import ConvergenceDetector
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ class RefineEngine:
         self.bedrock = bedrock_client
         self.domain_detector = DomainDetector()
         self.validator = SecurityValidator()
+        self.convergence_detector = ConvergenceDetector()
 
     async def _generate_draft(self, prompt: str, domain: str) -> str:
         """Generate initial draft response."""
@@ -133,7 +135,7 @@ Create an improved response that addresses these critiques while maintaining "
                 current_embedding = await self.bedrock.get_embedding(revision)
 
                 if previous_embedding is not None:
-                    convergence_score = self.bedrock.calculate_cosine_similarity(
+                    convergence_score = self.convergence_detector.cosine_similarity(
                         previous_embedding, current_embedding
                     )
                     logger.info(f"Convergence score: {convergence_score}")
