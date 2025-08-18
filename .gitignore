@@ -40,3 +40,5 @@ htmlcov/
 
 # Documentation
 docs/_build/
+
+.claude
