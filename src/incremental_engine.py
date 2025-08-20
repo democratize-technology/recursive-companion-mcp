@@ -14,6 +14,7 @@ import logging
 from domains import get_domain_system_prompt
 from session_persistence import persistence_manager
 from convergence import ConvergenceDetector
+from cot_enhancement import CoTEnhancer, CoTConfig, CoTMode
 
 logger = logging.getLogger(__name__)
 
@@ -242,6 +243,69 @@ class IncrementalRefineEngine:
         self.validator = validator
         self.session_manager = SessionManager()
         self.convergence_detector = ConvergenceDetector()
+        
+        # Initialize Chain of Thought enhancer with environment-based configuration
+        import os
+        cot_enabled = os.getenv("COT_ENABLED", "true").lower() == "true"
+        cot_mode = os.getenv("COT_MODE", "structured")
+        cot_metacognition = os.getenv("COT_METACOGNITION", "true").lower() == "true"
+        
+        try:
+            cot_mode_enum = CoTMode(cot_mode)
+        except ValueError:
+            logger.warning(f"Invalid CoT mode '{cot_mode}', using 'structured'")
+            cot_mode_enum = CoTMode.STRUCTURED
+        
+        cot_config = CoTConfig(
+            enabled=cot_enabled,
+            mode=cot_mode_enum,
+            include_metacognition=cot_metacognition
+        )
+        self.cot_enhancer = CoTEnhancer(cot_config)
+        
+        logger.info(f"CoT enhancement initialized: enabled={cot_enabled}, mode={cot_mode_enum.value}, metacognition={cot_metacognition}")
+        if cot_enabled:
+            logger.info("Chain of Thought will enhance draft, critique, and synthesis steps")
+    
+    def configure_cot(
+        self, 
+        enabled: Optional[bool] = None,
+        mode: Optional[str] = None,
+        include_metacognition: Optional[bool] = None
+    ) -> Dict[str, Any]:
+        """
+        Configure Chain of Thought settings
+        
+        Args:
+            enabled: Enable or disable CoT enhancement
+            mode: CoT mode (basic, structured, domain_specific, critique, synthesis)
+            include_metacognition: Include metacognitive prompts
+            
+        Returns:
+            Current configuration
+        """
+        if enabled is not None:
+            self.cot_enhancer.config.enabled = enabled
+            logger.info(f"CoT enhancement {'enabled' if enabled else 'disabled'}")
+        
+        if mode is not None:
+            try:
+                cot_mode = CoTMode(mode)
+                self.cot_enhancer.config.mode = cot_mode
+                logger.info(f"CoT mode set to '{mode}'")
+            except ValueError:
+                logger.warning(f"Invalid CoT mode '{mode}', keeping current mode")
+        
+        if include_metacognition is not None:
+            self.cot_enhancer.config.include_metacognition = include_metacognition
+            logger.info(f"CoT metacognition {'enabled' if include_metacognition else 'disabled'}")
+        
+        return {
+            "cot_enabled": self.cot_enhancer.config.enabled,
+            "cot_mode": self.cot_enhancer.config.mode.value,
+            "cot_metacognition": self.cot_enhancer.config.include_metacognition,
+            "available_modes": [mode.value for mode in CoTMode]
+        }
 
     async def start_refinement(
         self, prompt: str, domain: str = "auto", config: Optional[Dict] = None
@@ -374,11 +438,19 @@ class IncrementalRefineEngine:
             return error_response
 
     async def _do_draft_step(self, session: RefinementSession) -> Dict[str, Any]:
-        """Generate initial draft"""
+        """Generate initial draft with CoT enhancement"""
         system_prompt = self._get_domain_system_prompt(session.domain)
-        draft_prompt = (
-            f"Please provide a comprehensive response to the following:\n\n{session.prompt}"
+        
+        # Enhance draft prompt with Chain of Thought
+        draft_prompt = self.cot_enhancer.enhance_draft_prompt(
+            session.prompt, 
+            domain=session.domain
         )
+        
+        # Log CoT enhancement details
+        logger.info(f"Generating draft with CoT enhancement (enabled: {self.cot_enhancer.config.enabled})")
+        if self.cot_enhancer.config.enabled:
+            logger.debug(f"Draft prompt enhanced: {len(session.prompt)} -> {len(draft_prompt)} chars")
 
         draft = await self.bedrock.generate_text(draft_prompt, system_prompt)
 
@@ -412,21 +484,26 @@ class IncrementalRefineEngine:
         }
 
     async def _do_critique_step(self, session: RefinementSession) -> Dict[str, Any]:
-        """Generate critiques"""
-        critique_prompts = [
-            (
-                f"Critically analyze this response for accuracy and completeness:\n\n"
-                f"Original question: {session.prompt}\n\n"
-                f"Response: {session.current_draft}\n\n"
-                "Provide specific improvements."
-            ),
-            (
-                f"Evaluate this response for clarity and structure:\n\n"
-                f"Original question: {session.prompt}\n\n"
-                f"Response: {session.current_draft}\n\n"
-                "Suggest how to make it clearer."
-            ),
+        """Generate critiques with CoT enhancement"""
+        # Create enhanced critique prompts using CoT
+        base_critique_prompts = [
+            "Critically analyze this response for accuracy and completeness. Provide specific improvements.",
+            "Evaluate this response for clarity and structure. Suggest how to make it clearer."
         ]
+        
+        critique_prompts = [
+            self.cot_enhancer.enhance_critique_prompt(
+                session.prompt,
+                session.current_draft,
+                "accuracy and completeness" if i == 0 else "clarity and structure"
+            )
+            for i, _ in enumerate(base_critique_prompts)
+        ]
+        
+        # Log CoT enhancement for critiques
+        logger.info(f"Generating {len(critique_prompts)} critiques with CoT enhancement (enabled: {self.cot_enhancer.config.enabled})")
+        if self.cot_enhancer.config.enabled:
+            logger.debug(f"Critique prompts enhanced using {self.cot_enhancer.config.mode.value} mode")
 
         # Generate critiques in parallel
         # Use Haiku for faster critiques if available
@@ -473,24 +550,20 @@ class IncrementalRefineEngine:
         }
 
     async def _do_revise_step(self, session: RefinementSession) -> Dict[str, Any]:
-        """Synthesize revision and check convergence"""
+        """Synthesize revision with CoT enhancement and check convergence"""
         system_prompt = self._get_domain_system_prompt(session.domain)
-        critique_summary = "\n\n".join(
-            [f"Critique {i+1}: {c}" for i, c in enumerate(session.critiques)]
+        
+        # Enhance revision prompt with Chain of Thought synthesis
+        revision_prompt = self.cot_enhancer.enhance_synthesis_prompt(
+            session.prompt,
+            session.current_draft,
+            session.critiques
         )
-
-        revision_prompt = f"""Given the original question, current response, and critiques, "
-            "create an improved version.
-
-Original question: {session.prompt}
-
-Current response: {session.current_draft}
-
-Critiques:
-{critique_summary}
-
-Create an improved response that addresses these critiques while maintaining "
-            "accuracy and clarity."""
+        
+        # Log CoT enhancement for synthesis
+        logger.info(f"Generating synthesis revision with CoT enhancement (enabled: {self.cot_enhancer.config.enabled})")
+        if self.cot_enhancer.config.enabled:
+            logger.debug(f"Synthesis prompt enhanced with {len(session.critiques)} critiques using {self.cot_enhancer.config.mode.value} mode")
 
         revision = await self.bedrock.generate_text(revision_prompt, system_prompt, temperature=0.6)
 

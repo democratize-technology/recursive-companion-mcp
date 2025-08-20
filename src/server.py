@@ -156,6 +156,31 @@ async def handle_list_tools() -> list[Tool]:
                 "required": ["prompt"],
             },
         ),
+        Tool(
+            name="configure_cot",
+            description=(
+                "Configure Chain of Thought (CoT) enhancement settings for better reasoning quality. "
+                "CoT adds structured thinking prompts to improve LLM responses."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "enabled": {
+                        "type": "boolean",
+                        "description": "Enable or disable CoT enhancement",
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["basic", "structured", "domain_specific", "critique", "synthesis"],
+                        "description": "CoT reasoning mode",
+                    },
+                    "include_metacognition": {
+                        "type": "boolean",
+                        "description": "Include metacognitive prompts for self-reflection",
+                    },
+                },
+            },
+        ),
     ]
 
 
@@ -528,6 +553,56 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                     type="text",
                     text=json.dumps(
                         {"error": f"Failed to quick refine: {str(e)}", "success": False}, indent=2
+                    ),
+                )
+            ]
+
+    elif name == "configure_cot":
+        try:
+            if not incremental_engine:
+                return [
+                    TextContent(
+                        type="text",
+                        text=json.dumps(
+                            {"error": "Incremental engine not initialized", "success": False},
+                            indent=2,
+                        ),
+                    )
+                ]
+
+            enabled = arguments.get("enabled")
+            mode = arguments.get("mode")
+            include_metacognition = arguments.get("include_metacognition")
+
+            result = incremental_engine.configure_cot(
+                enabled=enabled,
+                mode=mode,
+                include_metacognition=include_metacognition
+            )
+
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "success": True,
+                            "message": "CoT configuration updated",
+                            "configuration": result,
+                            "_ai_note": "Changes apply to all new refinement sessions",
+                            "_ai_tip": "Use structured mode for analytical tasks, critique mode for evaluation",
+                        },
+                        indent=2,
+                    ),
+                )
+            ]
+
+        except Exception as e:
+            logger.error(f"Configure CoT error: {e}")
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {"error": f"Failed to configure CoT: {str(e)}", "success": False}, indent=2
                     ),
                 )
             ]
