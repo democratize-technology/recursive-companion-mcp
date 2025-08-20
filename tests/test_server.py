@@ -336,13 +336,13 @@ class TestMCPHandlers:
     @pytest.mark.asyncio
     async def test_list_tools(self):
         tools = await handle_list_tools()
-        assert len(tools) == 9  # We now have 9 tools (added configure_cot)
+        assert len(tools) == 8  # Chain of Thought configuration removed
 
         # Check that we have the main tools
         tool_names = [tool.name for tool in tools]
         assert "start_refinement" in tool_names
         assert "continue_refinement" in tool_names
-        assert "configure_cot" in tool_names  # New CoT configuration tool
+        # configure_cot tool removed - Chain of Thought now handled by external library
         assert "get_final_result" in tool_names
         assert "quick_refine" in tool_names
 

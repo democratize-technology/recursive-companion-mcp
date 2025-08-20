@@ -19,6 +19,7 @@ dependencies = [
     "scipy>=1.10.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
+    "chain-of-thought-tool @ git+https://github.com/democratize-technology/chain-of-thought-tool.git",
 ]
 
 [project.optional-dependencies]

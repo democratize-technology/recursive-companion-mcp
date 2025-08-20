@@ -14,7 +14,12 @@ import logging
 from domains import get_domain_system_prompt
 from session_persistence import persistence_manager
 from convergence import ConvergenceDetector
-from cot_enhancement import CoTEnhancer, CoTConfig, CoTMode
+
+try:
+    from chain_of_thought import TOOL_SPECS, AsyncChainOfThoughtProcessor
+    COT_AVAILABLE = True
+except ImportError:
+    COT_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -244,68 +249,68 @@ class IncrementalRefineEngine:
         self.session_manager = SessionManager()
         self.convergence_detector = ConvergenceDetector()
         
-        # Initialize Chain of Thought enhancer with environment-based configuration
-        import os
-        cot_enabled = os.getenv("COT_ENABLED", "true").lower() == "true"
-        cot_mode = os.getenv("COT_MODE", "structured")
-        cot_metacognition = os.getenv("COT_METACOGNITION", "true").lower() == "true"
+        # Initialize Chain of Thought availability check
+        if not COT_AVAILABLE:
+            logger.warning(
+                "chain-of-thought-tool not available. Install with: pip install chain-of-thought-tool"
+            )
         
-        try:
-            cot_mode_enum = CoTMode(cot_mode)
-        except ValueError:
-            logger.warning(f"Invalid CoT mode '{cot_mode}', using 'structured'")
-            cot_mode_enum = CoTMode.STRUCTURED
-        
-        cot_config = CoTConfig(
-            enabled=cot_enabled,
-            mode=cot_mode_enum,
-            include_metacognition=cot_metacognition
-        )
-        self.cot_enhancer = CoTEnhancer(cot_config)
-        
-        logger.info(f"CoT enhancement initialized: enabled={cot_enabled}, mode={cot_mode_enum.value}, metacognition={cot_metacognition}")
-        if cot_enabled:
+        logger.info(f"Chain of Thought enhancement: {'available' if COT_AVAILABLE else 'not available'}")
+        if COT_AVAILABLE:
             logger.info("Chain of Thought will enhance draft, critique, and synthesis steps")
     
-    def configure_cot(
-        self, 
-        enabled: Optional[bool] = None,
-        mode: Optional[str] = None,
-        include_metacognition: Optional[bool] = None
-    ) -> Dict[str, Any]:
-        """
-        Configure Chain of Thought settings
-        
-        Args:
-            enabled: Enable or disable CoT enhancement
-            mode: CoT mode (basic, structured, domain_specific, critique, synthesis)
-            include_metacognition: Include metacognitive prompts
+    def get_cot_tools(self) -> list[dict[str, Any]]:
+        """Get Chain of Thought tool specifications for Bedrock."""
+        if not COT_AVAILABLE:
+            return []
+        return TOOL_SPECS
+    
+    async def _process_with_cot(self, processor, request) -> str:
+        """Process a request with Chain of Thought reasoning."""
+        try:
+            if not COT_AVAILABLE or processor is None:
+                # Fallback to basic generation without tools
+                basic_request = request.copy()
+                if "toolConfig" in basic_request:
+                    del basic_request["toolConfig"]
+                
+                # Extract the prompt from the request
+                messages = basic_request.get("messages", [])
+                if messages:
+                    prompt = messages[0].get("content", [{}])[0].get("text", "")
+                    system_prompt = basic_request.get("system", [{}])[0].get("text", "")
+                    return await self.bedrock.generate_text(prompt, system_prompt)
+                
+                return "No response generated"
             
-        Returns:
-            Current configuration
-        """
-        if enabled is not None:
-            self.cot_enhancer.config.enabled = enabled
-            logger.info(f"CoT enhancement {'enabled' if enabled else 'disabled'}")
-        
-        if mode is not None:
-            try:
-                cot_mode = CoTMode(mode)
-                self.cot_enhancer.config.mode = cot_mode
-                logger.info(f"CoT mode set to '{mode}'")
-            except ValueError:
-                logger.warning(f"Invalid CoT mode '{mode}', keeping current mode")
-        
-        if include_metacognition is not None:
-            self.cot_enhancer.config.include_metacognition = include_metacognition
-            logger.info(f"CoT metacognition {'enabled' if include_metacognition else 'disabled'}")
-        
-        return {
-            "cot_enabled": self.cot_enhancer.config.enabled,
-            "cot_mode": self.cot_enhancer.config.mode.value,
-            "cot_metacognition": self.cot_enhancer.config.include_metacognition,
-            "available_modes": [mode.value for mode in CoTMode]
-        }
+            # Use CoT processor for enhanced reasoning
+            result = await processor.process_request(
+                bedrock_client=self.bedrock.bedrock_client,
+                request=request
+            )
+            
+            # Extract the final response text
+            if "output" in result and "message" in result["output"]:
+                content = result["output"]["message"].get("content", [])
+                for item in content:
+                    if item.get("text"):
+                        return item["text"]
+            
+            return "No response generated"
+        except Exception as e:
+            logger.error(f"CoT processing error: {e}")
+            # Fallback to basic generation
+            basic_request = request.copy()
+            if "toolConfig" in basic_request:
+                del basic_request["toolConfig"]
+            
+            messages = basic_request.get("messages", [])
+            if messages:
+                prompt = messages[0].get("content", [{}])[0].get("text", "")
+                system_prompt = basic_request.get("system", [{}])[0].get("text", "")
+                return await self.bedrock.generate_text(prompt, system_prompt)
+            
+            return "Error processing request"
 
     async def start_refinement(
         self, prompt: str, domain: str = "auto", config: Optional[Dict] = None
@@ -441,18 +446,58 @@ class IncrementalRefineEngine:
         """Generate initial draft with CoT enhancement"""
         system_prompt = self._get_domain_system_prompt(session.domain)
         
-        # Enhance draft prompt with Chain of Thought
-        draft_prompt = self.cot_enhancer.enhance_draft_prompt(
-            session.prompt, 
-            domain=session.domain
-        )
+        # Create CoT processor for this draft step
+        if COT_AVAILABLE:
+            processor = AsyncChainOfThoughtProcessor(
+                conversation_id=f"draft-{session.session_id}"
+            )
+            
+            # Enhance system prompt with CoT instructions
+            enhanced_system_prompt = f"""{system_prompt}
+
+You have access to Chain of Thought tools to structure your reasoning:
+- Use chain_of_thought_step to work through your response systematically
+- Start with Problem Definition stage to understand the task
+- Move through Analysis to break down the requirements
+- Use Synthesis stage to plan your approach
+- End with Conclusion stage to provide your final response
+- Set next_step_needed=false when you're ready to give the final draft
+
+Provide a comprehensive, well-structured response to the user's request."""
+            
+            # Prepare messages for draft generation
+            messages = [{
+                "role": "user",
+                "content": [{
+                    "text": f"""Please provide a comprehensive response to this request:
+
+{session.prompt}
+
+Use chain_of_thought_step to reason through your response systematically. Work through the problem step by step before providing your final answer."""
+                }]
+            }]
+            
+            request = {
+                "modelId": self._get_model_name(),
+                "messages": messages,
+                "system": [{"text": enhanced_system_prompt}],
+                "toolConfig": {"tools": self.get_cot_tools()},
+                "inferenceConfig": {
+                    "temperature": 0.7,
+                    "maxTokens": 4000,
+                },
+            }
+            
+            draft = await self._process_with_cot(processor, request)
+        else:
+            # Fallback to basic generation without CoT
+            draft = await self.bedrock.generate_text(session.prompt, system_prompt)
         
         # Log CoT enhancement details
-        logger.info(f"Generating draft with CoT enhancement (enabled: {self.cot_enhancer.config.enabled})")
-        if self.cot_enhancer.config.enabled:
-            logger.debug(f"Draft prompt enhanced: {len(session.prompt)} -> {len(draft_prompt)} chars")
+        logger.info(f"Generating draft with CoT enhancement (available: {COT_AVAILABLE})")
+        if COT_AVAILABLE:
+            logger.debug(f"Draft generated using Chain of Thought reasoning")
 
-        draft = await self.bedrock.generate_text(draft_prompt, system_prompt)
 
         await self.session_manager.update_session(
             session.session_id,
@@ -485,40 +530,86 @@ class IncrementalRefineEngine:
 
     async def _do_critique_step(self, session: RefinementSession) -> Dict[str, Any]:
         """Generate critiques with CoT enhancement"""
-        # Create enhanced critique prompts using CoT
-        base_critique_prompts = [
-            "Critically analyze this response for accuracy and completeness. Provide specific improvements.",
-            "Evaluate this response for clarity and structure. Suggest how to make it clearer."
-        ]
-        
-        critique_prompts = [
-            self.cot_enhancer.enhance_critique_prompt(
-                session.prompt,
-                session.current_draft,
-                "accuracy and completeness" if i == 0 else "clarity and structure"
-            )
-            for i, _ in enumerate(base_critique_prompts)
-        ]
-        
-        # Log CoT enhancement for critiques
-        logger.info(f"Generating {len(critique_prompts)} critiques with CoT enhancement (enabled: {self.cot_enhancer.config.enabled})")
-        if self.cot_enhancer.config.enabled:
-            logger.debug(f"Critique prompts enhanced using {self.cot_enhancer.config.mode.value} mode")
-
-        # Generate critiques in parallel
-        # Use Haiku for faster critiques if available
+        # Get critique model for faster parallel critiques
         import os
-
         critique_model = os.getenv(
             "CRITIQUE_MODEL_ID",
             os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-sonnet-20240229-v1:0"),
         )
-
-        critique_tasks = [
-            self.bedrock.generate_text(prompt, temperature=0.8, model_override=critique_model)
-            for prompt in critique_prompts[:2]  # Use 2 for speed
+        
+        # Define critique types
+        critique_types = [
+            ("accuracy and completeness", "Critically analyze this response for accuracy and completeness. Provide specific improvements."),
+            ("clarity and structure", "Evaluate this response for clarity and structure. Suggest how to make it clearer.")
         ]
+        
+        critique_tasks = []
+        
+        for i, (focus, base_prompt) in enumerate(critique_types):
+            if COT_AVAILABLE:
+                processor = AsyncChainOfThoughtProcessor(
+                    conversation_id=f"critique-{session.session_id}-{i}"
+                )
+                
+                enhanced_system_prompt = f"""You are a critical reviewer focused on {focus}.
 
+You have access to Chain of Thought tools to structure your analysis:
+- Use chain_of_thought_step to work through your critique systematically
+- Start with Problem Definition stage to understand what to analyze
+- Move through Analysis to examine the response against your focus area
+- Use Synthesis stage to formulate specific improvements
+- End with Conclusion stage to provide your final critique
+- Set next_step_needed=false when you're ready to give the final critique
+
+Provide specific, actionable feedback for improvement."""
+                
+                messages = [{
+                    "role": "user",
+                    "content": [{
+                        "text": f"""Please critically review this response with focus on {focus}:
+
+Original Question: {session.prompt}
+
+Response to Review:
+{session.current_draft}
+
+Use chain_of_thought_step to analyze this systematically and provide specific, actionable improvements."""
+                    }]
+                }]
+                
+                request = {
+                    "modelId": critique_model,
+                    "messages": messages,
+                    "system": [{"text": enhanced_system_prompt}],
+                    "toolConfig": {"tools": self.get_cot_tools()},
+                    "inferenceConfig": {
+                        "temperature": 0.8,
+                        "maxTokens": 3000,
+                    },
+                }
+                
+                task = self._process_with_cot(processor, request)
+            else:
+                # Fallback to basic critique without CoT
+                critique_prompt = f"""{base_prompt}
+
+Original Question: {session.prompt}
+
+Response to Review:
+{session.current_draft}
+
+Provide specific, actionable feedback for improvement."""
+                
+                task = self.bedrock.generate_text(critique_prompt, temperature=0.8, model_override=critique_model)
+            
+            critique_tasks.append(task)
+        
+        # Log CoT enhancement for critiques
+        logger.info(f"Generating {len(critique_tasks)} critiques with CoT enhancement (available: {COT_AVAILABLE})")
+        if COT_AVAILABLE:
+            logger.debug(f"Critiques generated using Chain of Thought reasoning")
+
+        # Generate critiques in parallel
         critiques = await asyncio.gather(*critique_tasks, return_exceptions=True)
         valid_critiques = [c for c in critiques if isinstance(c, str)]
 
@@ -541,7 +632,7 @@ class IncrementalRefineEngine:
             "continue_needed": True,
             "_ai_performance": {
                 "critique_model": critique_model,
-                "parallel_critiques": len(critique_prompts),
+                "parallel_critiques": len(critique_tasks),
                 "tip": "Using Claude Haiku for critiques can reduce iteration time by ~50%",
                 "recommendation": (
                     "Set CRITIQUE_MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0 in .env"
@@ -553,19 +644,86 @@ class IncrementalRefineEngine:
         """Synthesize revision with CoT enhancement and check convergence"""
         system_prompt = self._get_domain_system_prompt(session.domain)
         
-        # Enhance revision prompt with Chain of Thought synthesis
-        revision_prompt = self.cot_enhancer.enhance_synthesis_prompt(
-            session.prompt,
-            session.current_draft,
-            session.critiques
-        )
+        # Create CoT processor for synthesis step
+        if COT_AVAILABLE:
+            processor = AsyncChainOfThoughtProcessor(
+                conversation_id=f"revise-{session.session_id}-{session.current_iteration}"
+            )
+            
+            # Enhance system prompt with CoT instructions
+            enhanced_system_prompt = f"""{system_prompt}
+
+You have access to Chain of Thought tools to structure your synthesis:
+- Use chain_of_thought_step to work through your revision systematically
+- Start with Problem Definition stage to understand what needs improvement
+- Move through Analysis to examine the critiques and current draft
+- Use Synthesis stage to integrate feedback and plan improvements
+- End with Conclusion stage to provide your final revised response
+- Set next_step_needed=false when you're ready to give the final revision
+
+Create an improved response that addresses the critiques while maintaining accuracy and clarity."""
+            
+            # Prepare critique summary
+            critique_summary = "\n\n".join([
+                f"Critique {i+1}: {critique}" 
+                for i, critique in enumerate(session.critiques)
+            ])
+            
+            messages = [{
+                "role": "user",
+                "content": [{
+                    "text": f"""Please create an improved response that addresses these critiques:
+
+Original Question: {session.prompt}
+
+Current Response:
+{session.current_draft}
+
+Critiques to Address:
+{critique_summary}
+
+Use chain_of_thought_step to reason through your improvements systematically. Create a revised response that addresses the critiques while maintaining accuracy and clarity."""
+                }]
+            }]
+            
+            request = {
+                "modelId": self._get_model_name(),
+                "messages": messages,
+                "system": [{"text": enhanced_system_prompt}],
+                "toolConfig": {"tools": self.get_cot_tools()},
+                "inferenceConfig": {
+                    "temperature": 0.6,
+                    "maxTokens": 4000,
+                },
+            }
+            
+            revision = await self._process_with_cot(processor, request)
+        else:
+            # Fallback to basic synthesis without CoT
+            critique_summary = "\n\n".join([
+                f"Critique {i+1}: {critique}" 
+                for i, critique in enumerate(session.critiques)
+            ])
+            
+            revision_prompt = f"""Please create an improved response that addresses these critiques:
+
+Original Question: {session.prompt}
+
+Current Response:
+{session.current_draft}
+
+Critiques to Address:
+{critique_summary}
+
+Create a revised response that addresses the critiques while maintaining accuracy and clarity."""
+            
+            revision = await self.bedrock.generate_text(revision_prompt, system_prompt, temperature=0.6)
         
         # Log CoT enhancement for synthesis
-        logger.info(f"Generating synthesis revision with CoT enhancement (enabled: {self.cot_enhancer.config.enabled})")
-        if self.cot_enhancer.config.enabled:
-            logger.debug(f"Synthesis prompt enhanced with {len(session.critiques)} critiques using {self.cot_enhancer.config.mode.value} mode")
+        logger.info(f"Generating synthesis revision with CoT enhancement (available: {COT_AVAILABLE})")
+        if COT_AVAILABLE:
+            logger.debug(f"Synthesis completed with {len(session.critiques)} critiques using Chain of Thought reasoning")
 
-        revision = await self.bedrock.generate_text(revision_prompt, system_prompt, temperature=0.6)
 
         # Calculate convergence
         current_embedding = await self.bedrock.get_embedding(revision)
