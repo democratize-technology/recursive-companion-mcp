@@ -1,9 +1,33 @@
+#!/usr/bin/env python3
+# MIT License
+#
+# Copyright (c) 2025 Jeremy
+# Based on work by Hank Besser (https://github.com/hankbesser/recursive-companion)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 """
 Security utilities for sanitizing sensitive information from logs and error messages.
 """
 
 import re
-from typing import Any, Dict, List
+from typing import Any
 
 
 class CredentialSanitizer:
@@ -98,7 +122,7 @@ class CredentialSanitizer:
         return sanitized
 
     @classmethod
-    def sanitize_dict(cls, data: Dict[str, Any], max_depth: int = 10) -> Dict[str, Any]:
+    def sanitize_dict(cls, data: dict[str, Any], max_depth: int = 10) -> dict[str, Any]:
         """
         Recursively sanitize sensitive fields in a dictionary.
 
@@ -136,7 +160,7 @@ class CredentialSanitizer:
         return sanitized
 
     @classmethod
-    def sanitize_list(cls, data: List[Any], max_depth: int = 10) -> List[Any]:
+    def sanitize_list(cls, data: list[Any], max_depth: int = 10) -> list[Any]:
         """
         Recursively sanitize sensitive data in a list.
 
@@ -191,7 +215,7 @@ class CredentialSanitizer:
         return sanitized_msg
 
     @classmethod
-    def sanitize_boto3_error(cls, error: Exception) -> Dict[str, Any]:
+    def sanitize_boto3_error(cls, error: Exception) -> dict[str, Any]:
         """
         Sanitize boto3 client errors which often contain credentials.
 

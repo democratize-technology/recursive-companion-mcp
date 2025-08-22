@@ -1,3 +1,27 @@
+#!/usr/bin/env python3
+# MIT License
+#
+# Copyright (c) 2025 Jeremy
+# Based on work by Hank Besser (https://github.com/hankbesser/recursive-companion)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 """
 Core refinement engine implementing the Draft → Critique → Revise → Converge pattern.
 """
@@ -5,14 +29,13 @@ Core refinement engine implementing the Draft → Critique → Revise → Conver
 import asyncio
 import logging
 import time
-from typing import List
 
 from bedrock_client import BedrockClient
 from config import config
+from convergence import ConvergenceDetector
 from domains import DomainDetector, get_domain_system_prompt
 from session_manager import RefinementIteration, RefinementResult
 from validation import SecurityValidator
-from convergence import ConvergenceDetector
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +56,7 @@ class RefineEngine:
 
         return await self.bedrock.generate_text(draft_prompt, system_prompt)
 
-    async def _generate_critiques(self, prompt: str, draft: str, domain: str) -> List[str]:
+    async def _generate_critiques(self, prompt: str, draft: str, domain: str) -> list[str]:
         """Generate multiple critiques in parallel."""
         critique_prompts = [
             (
@@ -73,7 +96,7 @@ class RefineEngine:
         return valid_critiques
 
     async def _synthesize_revision(
-        self, prompt: str, draft: str, critiques: List[str], domain: str
+        self, prompt: str, draft: str, critiques: list[str], domain: str
     ) -> str:
         """Synthesize critiques into an improved revision."""
         system_prompt = get_domain_system_prompt(domain)

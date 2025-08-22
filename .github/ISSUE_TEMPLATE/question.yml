@@ -1,0 +1,74 @@
+name: Question or Support
+description: Ask a question about usage, configuration, or get help with the recursive-companion-mcp server
+title: "[Question]: "
+labels: ["question", "help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reaching out! Please provide details about your question or support request.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know or what help do you need?
+      placeholder: "How do I configure..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Question Category
+      description: What type of question is this?
+      options:
+        - Setup and Installation
+        - Configuration
+        - Usage and API
+        - Performance and Optimization
+        - Integration with Claude Desktop
+        - AWS Bedrock Setup
+        - Troubleshooting
+        - Best Practices
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: |
+        Provide additional context about your setup or what you're trying to achieve:
+      value: |
+        - What are you trying to accomplish?
+        - What have you tried so far?
+        - What resources have you already consulted?
+      render: markdown
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment (if relevant)
+      description: |
+        If your question is environment-specific, please provide:
+      value: |
+        - OS: [e.g., Ubuntu 22.04, macOS 14.0, Windows 11]
+        - Python version: [e.g., 3.11.5]
+        - recursive-companion-mcp version: [e.g., 1.0.0]
+        - AWS Region: [if using Bedrock]
+        - Claude Desktop version: [if applicable]
+      render: markdown
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have checked the README and documentation
+          required: true
+        - label: I have searched existing issues for similar questions
+          required: true
+        - label: This is a genuine question and not a bug report or feature request
+          required: true

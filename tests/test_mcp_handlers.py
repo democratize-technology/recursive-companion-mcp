@@ -2,21 +2,19 @@
 Tests for MCP server handlers - achieving 100% coverage
 """
 
-import pytest
 import asyncio
 import json
-from unittest.mock import Mock, AsyncMock, patch, MagicMock, call
-from datetime import datetime
-import numpy as np
-import os
-
 import sys
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 sys.path.insert(0, "./src")
-from server import handle_call_tool, incremental_engine, session_tracker, server, main
-from error_handling import create_ai_error_response
-from incremental_engine import IncrementalRefineEngine, RefinementSession, RefinementStatus
 from mcp.types import TextContent
+
+from error_handling import create_ai_error_response
+from incremental_engine import IncrementalRefineEngine
+from server import handle_call_tool, session_tracker
 
 
 class TestMCPHandlers:

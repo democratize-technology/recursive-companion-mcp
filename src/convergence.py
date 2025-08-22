@@ -1,3 +1,27 @@
+#!/usr/bin/env python3
+# MIT License
+#
+# Copyright (c) 2025 Jeremy
+# Based on work by Hank Besser (https://github.com/hankbesser/recursive-companion)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 """
 Reusable convergence detection module for thinking tools.
 Extracted from recursive-companion and adapted for general use.
@@ -5,13 +29,14 @@ Extracted from recursive-companion and adapted for general use.
 
 import asyncio
 import hashlib
-import logging
-from typing import List, Tuple, Optional, Dict, Any
-from collections import OrderedDict
-import numpy as np
 import json
-import boto3
+import logging
+from collections import OrderedDict
 from dataclasses import dataclass
+from typing import Any
+
+import boto3
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +58,7 @@ class EmbeddingService:
     def __init__(self, config: ConvergenceConfig):
         self.config = config
         self.bedrock_runtime = None
-        self._embedding_cache: OrderedDict[str, List[float]] = OrderedDict()
+        self._embedding_cache: OrderedDict[str, list[float]] = OrderedDict()
         self._cache_hits = 0
         self._cache_misses = 0
         self._initialized = False
@@ -58,14 +83,14 @@ class EmbeddingService:
                 logger.error(f"Failed to initialize embedding service: {e}")
                 raise
 
-    async def get_embedding(self, text: str) -> List[float]:
+    async def get_embedding(self, text: str) -> list[float]:
         """Get text embedding with caching"""
         # Truncate text if too long
         if len(text) > self.config.max_text_length:
             text = text[: self.config.max_text_length]
 
-        # Create cache key
-        text_hash = hashlib.md5(text.encode()).hexdigest()
+        # Create cache key (MD5 used for non-security caching purpose)
+        text_hash = hashlib.md5(text.encode(), usedforsecurity=False).hexdigest()  # nosec
 
         # Check cache first
         if text_hash in self._embedding_cache:
@@ -115,7 +140,7 @@ class EmbeddingService:
             return 0.0
         return self._cache_hits / total
 
-    def get_cache_stats(self) -> Dict[str, Any]:
+    def get_cache_stats(self) -> dict[str, Any]:
         """Get cache statistics"""
         return {
             "hits": self._cache_hits,
@@ -128,12 +153,12 @@ class EmbeddingService:
 class ConvergenceDetector:
     """Drop-in convergence detection for thinking tools"""
 
-    def __init__(self, config: Optional[ConvergenceConfig] = None):
+    def __init__(self, config: ConvergenceConfig | None = None):
         self.config = config or ConvergenceConfig()
         self.embedding_service = EmbeddingService(self.config)
         self._convergence_history = []
 
-    def cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+    def cosine_similarity(self, vec1: list[float], vec2: list[float]) -> float:
         """Calculate cosine similarity between two vectors"""
         vec1_np = np.array(vec1)
         vec2_np = np.array(vec2)
@@ -148,8 +173,8 @@ class ConvergenceDetector:
         return float(dot_product / (norm1 * norm2))
 
     async def is_converged(
-        self, current: str, previous: str, threshold: Optional[float] = None
-    ) -> Tuple[bool, float]:
+        self, current: str, previous: str, threshold: float | None = None
+    ) -> tuple[bool, float]:
         """
         Check if iterations have converged
 
@@ -192,11 +217,11 @@ class ConvergenceDetector:
             # Return False on error to continue iterations
             return False, 0.0
 
-    def get_convergence_history(self) -> List[Dict[str, Any]]:
+    def get_convergence_history(self) -> list[dict[str, Any]]:
         """Get history of convergence checks"""
         return self._convergence_history.copy()
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get convergence detection statistics"""
         if not self._convergence_history:
             return {"total_checks": 0}
@@ -248,7 +273,7 @@ async def simple_convergence_check(current: str, previous: str, threshold: float
 # Fallback convergence check (no embeddings needed)
 def basic_text_convergence(
     current: str, previous: str, threshold: float = 0.95
-) -> Tuple[bool, float]:
+) -> tuple[bool, float]:
     """
     Basic convergence check using simple text similarity
     Fallback when embeddings are not available
@@ -266,4 +291,3 @@ def basic_text_convergence(
     similarity = common_chars / max_len
 
     return similarity >= threshold, similarity
-

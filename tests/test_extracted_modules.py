@@ -2,21 +2,19 @@
 Unit tests for extracted modules
 """
 
-import pytest
-import asyncio
-import json
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime
 import sys
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 sys.path.insert(0, "./src")
 
 from bedrock_client import BedrockClient
-from error_handling import create_ai_error_response
-from validation import SecurityValidator
-from session_manager import SessionTracker, RefinementIteration, RefinementResult
-from refine_engine import RefineEngine
 from config import config
+from error_handling import create_ai_error_response
+from refine_engine import RefineEngine
+from session_manager import RefinementIteration, RefinementResult, SessionTracker
+from validation import SecurityValidator
 
 
 class TestBedrockClientUnit:

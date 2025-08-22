@@ -8,8 +8,8 @@ start_request = {
     "tool": "start_refinement",
     "arguments": {
         "prompt": "Write a technical specification for a user authentication system",
-        "domain": "technical"  # optional, defaults to "auto"
-    }
+        "domain": "technical",  # optional, defaults to "auto"
+    },
 }
 
 start_response = {
@@ -18,13 +18,13 @@ start_response = {
     "status": "started",
     "domain": "technical",
     "message": "Refinement session started. Use continue_refinement to proceed.",
-    "next_action": "continue_refinement"
+    "next_action": "continue_refinement",
 }
 
 # Example: Continuing refinement (no session_id needed after recent improvements!)
 continue_request = {
     "tool": "continue_refinement",
-    "arguments": {}  # Uses current session automatically
+    "arguments": {},  # Uses current session automatically
 }
 
 continue_response = {
@@ -37,21 +37,18 @@ continue_response = {
         "current_action": "Analyzing for improvements",
         "iteration": "1/5",
         "convergence": "0.0%",
-        "status_emoji": "🔍"
+        "status_emoji": "🔍",
     },
     "message": "✍️ Initial draft generated. Ready for critiques.",
     "draft_preview": "# User Authentication System Specification...",
     "next_action": "continue_refinement",
-    "continue_needed": True
+    "continue_needed": True,
 }
 
 # Example: Quick refinement for simple questions
 quick_request = {
     "tool": "quick_refine",
-    "arguments": {
-        "prompt": "What is OAuth 2.0?",
-        "max_wait": 30  # seconds
-    }
+    "arguments": {"prompt": "What is OAuth 2.0?", "max_wait": 30},  # seconds
 }
 
 # The refinement process:

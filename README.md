@@ -1,5 +1,11 @@
 # Recursive Companion MCP
 
+[![CI](https://github.com/thinkerz-ai/recursive-companion-mcp/workflows/CI/badge.svg)](https://github.com/thinkerz-ai/recursive-companion-mcp/actions)
+[![codecov](https://codecov.io/gh/thinkerz-ai/recursive-companion-mcp/branch/main/graph/badge.svg)](https://codecov.io/gh/thinkerz-ai/recursive-companion-mcp)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![MCP](https://img.shields.io/badge/MCP-compatible-green.svg)](https://modelcontextprotocol.io/)
+
 An MCP (Model Context Protocol) server that implements iterative refinement through self-critique cycles. Inspired by [Hank Besser's recursive-companion](https://github.com/hankbesser/recursive-companion), this implementation adds incremental processing to avoid timeouts and enable progress visibility.
 
 ## Features
@@ -21,6 +27,8 @@ The refinement process follows a **Draft → Critique → Revise → Converge** 
 3. **Revise**: Synthesize critiques into improved version
 4. **Converge**: Measure similarity and repeat until threshold reached
 
+For detailed architecture diagrams and system design documentation, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Installation
 
 ### Prerequisites
@@ -33,7 +41,7 @@ The refinement process follows a **Draft → Critique → Revise → Converge** 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/recursive-companion-mcp.git
+git clone https://github.com/thinkerz-ai/recursive-companion-mcp.git
 cd recursive-companion-mcp
 ```
 
@@ -46,15 +54,32 @@ uv sync
 
 4. Add to Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
+**Basic Configuration:**
 ```json
 {
   "mcpServers": {
     "recursive-companion": {
-      "command": "/path/to/recursive-companion-mcp/run_server.sh",
+      "command": "/path/to/recursive-companion-mcp/run.sh",
       "env": {
         "AWS_REGION": "us-east-1",
-        "AWS_ACCESS_KEY_ID": "your-key",
-        "AWS_SECRET_ACCESS_KEY": "your-secret",
+        "AWS_ACCESS_KEY_ID": "your-access-key",
+        "AWS_SECRET_ACCESS_KEY": "your-secret-key"
+      }
+    }
+  }
+}
+```
+
+**Optimized Configuration (Recommended):**
+```json
+{
+  "mcpServers": {
+    "recursive-companion": {
+      "command": "/path/to/recursive-companion-mcp/run.sh",
+      "env": {
+        "AWS_REGION": "us-east-1",
+        "AWS_ACCESS_KEY_ID": "your-access-key", 
+        "AWS_SECRET_ACCESS_KEY": "your-secret-key",
         "BEDROCK_MODEL_ID": "anthropic.claude-3-sonnet-20240229-v1:0",
         "CRITIQUE_MODEL_ID": "anthropic.claude-3-haiku-20240307-v1:0",
         "CONVERGENCE_THRESHOLD": "0.95",
@@ -67,28 +92,57 @@ uv sync
 }
 ```
 
+**Performance Tips:**
+- Use Haiku for `CRITIQUE_MODEL_ID` for 50% speed improvement
+- Lower `CONVERGENCE_THRESHOLD` to 0.95 for faster convergence
+- Reduce `PARALLEL_CRITIQUES` to 2 for better resource usage
+- See [API_EXAMPLES.md](API_EXAMPLES.md) for more configuration examples
+
 ## Usage
 
-The tool provides several MCP endpoints:
+The tool provides several MCP endpoints for iterative refinement:
 
-### Start a refinement session
-```
-Use start_refinement to refine: "Explain the key principles of secure API design"
-```
+### Quick Start Examples
 
-### Continue refinement step by step
-```
-Use continue_refinement with session_id "abc123..."
+**Simple refinement (auto-complete):**
+```bash
+quick_refine(prompt="Explain the key principles of secure API design", max_wait=60)
 ```
 
-### Get final result
-```
-Use get_final_result with session_id "abc123..."
+**Step-by-step refinement (full control):**
+```bash
+# Start session
+start_refinement(prompt="Design a microservices architecture for e-commerce", domain="technical")
+
+# Continue iteratively
+continue_refinement()  # Draft phase
+continue_refinement()  # Critique phase  
+continue_refinement()  # Revision phase
+
+# Get final result
+get_final_result()
 ```
 
-### Other tools
+**Session management:**
+```bash
+current_session()           # Check active session
+list_refinement_sessions()  # List all sessions
+abort_refinement()          # Stop and get best result so far
+```
+
+### Complete API Reference
+
+For comprehensive examples with realistic scenarios, error handling patterns, and integration workflows, see **[API_EXAMPLES.md](API_EXAMPLES.md)**.
+
+### Available Tools
+- `start_refinement` - Begin new refinement session with domain detection
+- `continue_refinement` - Advance session through draft→critique→revise cycles  
+- `get_final_result` - Retrieve completed refinement
 - `get_refinement_status` - Check progress without advancing
+- `current_session` - Get active session info (no ID needed)
 - `list_refinement_sessions` - See all active sessions
+- `abort_refinement` - Stop refinement, return best version so far
+- `quick_refine` - Auto-complete simple refinements (under 60s)
 
 ## Configuration
 
@@ -160,6 +214,40 @@ uv run pytest tests/
 ```bash
 uv run python test_incremental.py
 ```
+
+### Automation Infrastructure
+
+This project includes comprehensive automation for OSS readiness:
+
+- **🤖 Dependabot**: Automated dependency updates with intelligent grouping
+- **🚀 Semantic Release**: Automated versioning and releases based on conventional commits
+- **🔒 Security Monitoring**: Multi-tool security scanning (Safety, Bandit, CodeQL, Trivy)
+- **✅ Quality Gates**: Automated testing, coverage, linting, and type checking
+- **📦 Dependency Management**: Advanced dependency health monitoring and updates
+
+#### Automation Commands
+
+```bash
+# Verify automation setup
+uv run python scripts/setup_check.py
+
+# Validate workflow configurations
+uv run python scripts/validate_workflows.py
+
+# Manual release (if needed)
+uv run semantic-release version --noop  # dry run
+uv run semantic-release version --minor  # actual release
+```
+
+#### Development Workflow
+
+1. **Feature Development**: Work on feature branches
+2. **Pull Requests**: Quality gates run automatically
+3. **Code Review**: Automated security and quality feedback
+4. **Merge to develop**: Beta releases created automatically
+5. **Merge to main**: Production releases created automatically
+
+See [AUTOMATION.md](AUTOMATION.md) for complete automation documentation.
 
 ## Attribution
 

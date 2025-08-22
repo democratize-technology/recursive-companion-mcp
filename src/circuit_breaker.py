@@ -1,3 +1,27 @@
+#!/usr/bin/env python3
+# MIT License
+#
+# Copyright (c) 2025 Jeremy
+# Based on work by Hank Besser (https://github.com/hankbesser/recursive-companion)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 """
 Circuit breaker implementation for handling AWS API failures gracefully.
 """
@@ -5,9 +29,10 @@ Circuit breaker implementation for handling AWS API failures gracefully.
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Dict, Optional, TypeVar
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +76,8 @@ class CircuitBreakerStats:
     successful_calls: int = 0
     failed_calls: int = 0
     circuit_opens: int = 0
-    last_failure_time: Optional[float] = None
-    last_success_time: Optional[float] = None
+    last_failure_time: float | None = None
+    last_success_time: float | None = None
     consecutive_failures: int = 0
     consecutive_successes: int = 0
     state_changes: list = field(default_factory=list)
@@ -79,7 +104,7 @@ class CircuitBreaker:
     - HALF_OPEN: Testing recovery, limited requests allowed
     """
 
-    def __init__(self, name: str, config: Optional[CircuitBreakerConfig] = None):
+    def __init__(self, name: str, config: CircuitBreakerConfig | None = None):
         """
         Initialize circuit breaker.
 
@@ -155,7 +180,7 @@ class CircuitBreaker:
                     self.stats.reset_consecutive_counts()
 
     async def call(
-        self, func: Callable[..., T], *args, fallback: Optional[Callable[..., T]] = None, **kwargs
+        self, func: Callable[..., T], *args, fallback: Callable[..., T] | None = None, **kwargs
     ) -> T:
         """
         Execute function through circuit breaker.
@@ -265,7 +290,7 @@ class CircuitBreaker:
             # Failed during recovery test, reopen circuit
             await self._change_state(CircuitState.OPEN)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get current statistics and state."""
         return {
             "name": self.name,
@@ -302,24 +327,22 @@ class CircuitBreaker:
 class CircuitBreakerOpenError(Exception):
     """Exception raised when circuit breaker is open."""
 
-    pass
-
 
 class CircuitBreakerManager:
     """Manages multiple circuit breakers for different services."""
 
     def __init__(self):
-        self._breakers: Dict[str, CircuitBreaker] = {}
+        self._breakers: dict[str, CircuitBreaker] = {}
 
     def get_or_create(
-        self, name: str, config: Optional[CircuitBreakerConfig] = None
+        self, name: str, config: CircuitBreakerConfig | None = None
     ) -> CircuitBreaker:
         """Get existing or create new circuit breaker."""
         if name not in self._breakers:
             self._breakers[name] = CircuitBreaker(name, config)
         return self._breakers[name]
 
-    def get_all_stats(self) -> Dict[str, Any]:
+    def get_all_stats(self) -> dict[str, Any]:
         """Get statistics for all circuit breakers."""
         return {name: breaker.get_stats() for name, breaker in self._breakers.items()}
 

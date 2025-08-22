@@ -1,3 +1,27 @@
+#!/usr/bin/env python3
+# MIT License
+#
+# Copyright (c) 2025 Jeremy
+# Based on work by Hank Besser (https://github.com/hankbesser/recursive-companion)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 """
 AWS Bedrock client wrapper for model operations.
 Handles text generation and embeddings with proper error handling and caching.
@@ -10,13 +34,13 @@ import logging
 import sys
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import boto3
 
+from circuit_breaker import CircuitBreakerConfig, CircuitBreakerOpenError, circuit_manager
 from config import config
 from security_utils import CredentialSanitizer
-from circuit_breaker import CircuitBreakerConfig, CircuitBreakerOpenError, circuit_manager
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +52,7 @@ class BedrockClient:
         """Initialize without blocking - credentials will be validated on first use."""
         self.bedrock_runtime = None
         # Use OrderedDict for LRU cache implementation
-        self._embedding_cache: OrderedDict[str, List[float]] = OrderedDict()
+        self._embedding_cache: OrderedDict[str, list[float]] = OrderedDict()
         self._cache_memory_bytes = 0
         self._max_cache_memory_bytes = 50 * 1024 * 1024  # 50MB limit
         self._executor = ThreadPoolExecutor(max_workers=config.executor_max_workers)
@@ -127,7 +151,7 @@ class BedrockClient:
         prompt: str,
         system_prompt: str = "",
         temperature: float = 0.7,
-        model_override: Optional[str] = None,
+        model_override: str | None = None,
     ) -> str:
         """
         Generate text using Claude via Bedrock with optimized async handling.
@@ -187,7 +211,7 @@ class BedrockClient:
                 f"Generation failed: {sanitized_error.get('error_message', 'Unknown error')}"
             )
 
-    def _get_embedding_uncached_sync(self, text: str) -> List[float]:
+    def _get_embedding_uncached_sync(self, text: str) -> list[float]:
         """Synchronous embedding generation for executor."""
         response = self.bedrock_runtime.invoke_model(
             modelId=config.embedding_model_id, body=json.dumps({"inputText": text})
@@ -195,7 +219,7 @@ class BedrockClient:
         response_body = json.loads(response["body"].read())
         return response_body["embedding"]
 
-    async def _get_embedding_uncached(self, text: str) -> Optional[List[float]]:
+    async def _get_embedding_uncached(self, text: str) -> list[float] | None:
         """Get text embedding using Titan with circuit breaker protection."""
         try:
             loop = asyncio.get_event_loop()
@@ -235,7 +259,7 @@ class BedrockClient:
                 f"Embedding failed: {sanitized_error.get('error_message', 'Unknown error')}"
             )
 
-    async def get_embedding(self, text: str) -> List[float]:
+    async def get_embedding(self, text: str) -> list[float]:
         """
         Get text embedding with LRU caching and memory management.
 
@@ -301,7 +325,7 @@ class BedrockClient:
             return 0.0
         return self._cache_hits / total
 
-    def get_cache_stats(self) -> Dict[str, Any]:
+    def get_cache_stats(self) -> dict[str, Any]:
         """Get comprehensive cache statistics."""
         return {
             "hits": self._cache_hits,
@@ -313,7 +337,7 @@ class BedrockClient:
             "max_memory_mb": self._max_cache_memory_bytes / (1024 * 1024),
         }
 
-    def get_circuit_breaker_stats(self) -> Dict[str, Any]:
+    def get_circuit_breaker_stats(self) -> dict[str, Any]:
         """Get circuit breaker statistics for monitoring."""
         return {
             "generation": self._generation_breaker.get_stats(),

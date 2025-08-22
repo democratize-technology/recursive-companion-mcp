@@ -2,9 +2,9 @@
 """
 Quick verification script for Recursive Companion MCP
 """
-import sys
-import subprocess
 import json
+import subprocess
+import sys
 
 print("🔍 Verifying Recursive Companion MCP installation...\n")
 
@@ -16,13 +16,7 @@ if python_version < (3, 8):
     sys.exit(1)
 
 # Check required packages
-required_packages = [
-    "mcp",
-    "boto3", 
-    "numpy",
-    "scipy",
-    "pydantic"
-]
+required_packages = ["mcp", "boto3", "numpy", "scipy", "pydantic"]
 
 missing_packages = []
 for package in required_packages:
@@ -35,17 +29,13 @@ for package in required_packages:
 
 if missing_packages:
     print(f"\n⚠️  Missing packages: {', '.join(missing_packages)}")
-    print("  Run: pip install -r requirements.txt")
+    print("  Run: uv sync --dev (or pip install -e '.[dev]' if uv not available)")
     sys.exit(1)
 
 # Check AWS credentials
 print("\n🔍 Checking AWS configuration...")
 try:
-    result = subprocess.run(
-        ["aws", "sts", "get-caller-identity"],
-        capture_output=True,
-        text=True
-    )
+    result = subprocess.run(["aws", "sts", "get-caller-identity"], capture_output=True, text=True)
     if result.returncode == 0:
         identity = json.loads(result.stdout)
         print(f"✓ AWS credentials configured")
@@ -59,5 +49,5 @@ except Exception as e:
 
 print("\n✅ Basic verification complete!")
 print("\nTo test the server:")
-print("  python src/server.py")
+print("  uv run python src/server.py (or python src/server.py if activated)")
 print("\nFor Claude Desktop, add the configuration from QUICKSTART.md")

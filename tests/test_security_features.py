@@ -2,9 +2,6 @@
 Tests for security enhancements including credential sanitization.
 """
 
-import pytest
-from unittest.mock import Mock, patch
-import boto3
 from botocore.exceptions import ClientError
 
 from security_utils import CredentialSanitizer

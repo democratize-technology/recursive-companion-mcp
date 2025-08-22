@@ -2,18 +2,14 @@
 Tests for abort refinement functionality
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock
-
 import sys
+from unittest.mock import Mock
+
+import pytest
 
 sys.path.insert(0, "./src")
-from incremental_engine import (
-    IncrementalRefineEngine,
-    RefinementSession,
-    RefinementStatus,
-)
 from domains import DomainDetector
+from incremental_engine import IncrementalRefineEngine, RefinementSession, RefinementStatus
 from validation import SecurityValidator
 
 

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🚀 Thinkerz Platform Documentation
+    url: https://github.com/thinkerz-ai/thinkerz
+    about: Learn about the broader Thinkerz cognitive AI orchestration platform
+  - name: 💬 Discussions
+    url: https://github.com/thinkerz-ai/recursive-companion-mcp/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: 📚 MCP Documentation
+    url: https://modelcontextprotocol.io/
+    about: Learn more about the Model Context Protocol

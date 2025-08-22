@@ -1,0 +1,113 @@
+# Dependabot configuration for automated dependency updates
+# https://docs.github.com/en/code-security/supply-chain-security/keeping-your-dependencies-updated-automatically/configuration-options-for-dependency-updates
+
+version: 2
+updates:
+  # Python package updates (using pip ecosystem)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    target-branch: "develop"
+    reviewers:
+      - "recursive-companion-maintainers"
+    assignees:
+      - "recursive-companion-maintainers"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "python"
+    # Group related updates together
+    groups:
+      aws-dependencies:
+        patterns:
+          - "boto3*"
+          - "botocore*"
+          - "awscli*"
+      test-dependencies:
+        patterns:
+          - "pytest*"
+          - "moto*"
+          - "coverage*"
+      dev-dependencies:
+        patterns:
+          - "black*"
+          - "flake8*"
+          - "mypy*"
+          - "pre-commit*"
+      security-dependencies:
+        patterns:
+          - "cryptography*"
+          - "requests*"
+          - "urllib3*"
+          - "certifi*"
+    # Version updates configuration
+    versioning-strategy: "increase"
+    # Allow both direct and indirect dependencies
+    allow:
+      - dependency-type: "direct"
+      - dependency-type: "indirect"
+    # Ignore specific dependencies if needed
+    ignore:
+      # Example: Ignore patch updates for stable dependencies
+      - dependency-name: "numpy"
+        update-types: ["version-update:semver-patch"]
+    # Rebase strategy for conflicting PRs
+    rebase-strategy: "auto"
+
+  # GitHub Actions updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 3
+    target-branch: "develop"
+    reviewers:
+      - "recursive-companion-maintainers"
+    assignees:
+      - "recursive-companion-maintainers"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "ci"
+    # Group GitHub Actions updates
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    rebase-strategy: "auto"
+
+  # Docker updates (if Dockerfile is added later)
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 2
+    target-branch: "develop"
+    reviewers:
+      - "recursive-companion-maintainers"
+    assignees:
+      - "recursive-companion-maintainers"
+    commit-message:
+      prefix: "docker"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
+    rebase-strategy: "auto"

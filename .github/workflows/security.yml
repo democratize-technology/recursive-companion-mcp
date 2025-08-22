@@ -1,0 +1,187 @@
+name: Security Monitoring
+
+on:
+  schedule:
+    # Run security checks daily at 6 AM UTC
+    - cron: '0 6 * * *'
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  dependency-security:
+    name: Dependency Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+
+      - name: Run Safety check
+        run: |
+          uv add --dev safety
+          uv run safety check --json --output safety-report.json || true
+        continue-on-error: true
+
+      - name: Run Bandit security linter
+        run: |
+          uv add --dev bandit[toml]
+          uv run bandit -r src/ -f json -o bandit-report.json || true
+        continue-on-error: true
+
+      - name: Run pip-audit
+        run: |
+          uv add --dev pip-audit
+          uv run pip-audit --format=json --output=pip-audit-report.json || true
+        continue-on-error: true
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            safety-report.json
+            bandit-report.json
+            pip-audit-report.json
+          retention-days: 30
+
+      - name: Comment on PR with security summary
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            let securitySummary = '## 🔒 Security Scan Results\n\n';
+
+            // Check if security reports exist and summarize
+            try {
+              if (fs.existsSync('safety-report.json')) {
+                const safetyData = JSON.parse(fs.readFileSync('safety-report.json', 'utf8'));
+                const vulnerabilities = safetyData.vulnerabilities || [];
+                securitySummary += `- **Safety**: ${vulnerabilities.length} vulnerability(ies) found\n`;
+              }
+            } catch (e) {
+              securitySummary += '- **Safety**: Scan completed (check artifacts for details)\n';
+            }
+
+            try {
+              if (fs.existsSync('bandit-report.json')) {
+                const banditData = JSON.parse(fs.readFileSync('bandit-report.json', 'utf8'));
+                const issues = banditData.results || [];
+                securitySummary += `- **Bandit**: ${issues.length} potential issue(s) found\n`;
+              }
+            } catch (e) {
+              securitySummary += '- **Bandit**: Scan completed (check artifacts for details)\n';
+            }
+
+            try {
+              if (fs.existsSync('pip-audit-report.json')) {
+                const pipAuditData = JSON.parse(fs.readFileSync('pip-audit-report.json', 'utf8'));
+                const vulnerabilities = pipAuditData.vulnerabilities || [];
+                securitySummary += `- **Pip-audit**: ${vulnerabilities.length} vulnerability(ies) found\n`;
+              }
+            } catch (e) {
+              securitySummary += '- **Pip-audit**: Scan completed (check artifacts for details)\n';
+            }
+
+            securitySummary += '\n📋 Detailed reports are available in the workflow artifacts.';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: securitySummary
+            });
+
+  codeql-analysis:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'python' ]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+          allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, GPL-3.0
+          deny-licenses: GPL-2.0, LGPL-2.0
+
+  supply-chain-security:
+    name: Supply Chain Security
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner in repo mode
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'

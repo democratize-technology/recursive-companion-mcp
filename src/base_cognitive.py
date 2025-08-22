@@ -1,3 +1,27 @@
+#!/usr/bin/env python3
+# MIT License
+#
+# Copyright (c) 2025 Jeremy
+# Based on work by Hank Besser (https://github.com/hankbesser/recursive-companion)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 """
 Base cognitive enhancement class for thinking tools.
 Provides common functionality like convergence detection and iteration tracking.
@@ -5,10 +29,11 @@ Provides common functionality like convergence detection and iteration tracking.
 
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional, Callable, Tuple
+from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from abc import ABC, abstractmethod
+from typing import Any
 
 from convergence import create_detector_for_tool
 
@@ -21,7 +46,7 @@ class CognitiveConfig:
 
     tool_name: str
     max_iterations: int = 10
-    convergence_threshold: Optional[float] = None
+    convergence_threshold: float | None = None
     enable_convergence: bool = True
     enable_logging: bool = True
     log_level: str = "INFO"
@@ -34,8 +59,8 @@ class IterationResult:
     iteration: int
     content: str
     timestamp: datetime = field(default_factory=datetime.utcnow)
-    convergence_score: Optional[float] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    convergence_score: float | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class CognitiveEnhancer:
@@ -52,7 +77,7 @@ class CognitiveEnhancer:
     def __init__(self, config: CognitiveConfig):
         self.config = config
         self.convergence_detector = None
-        self.iteration_history: List[IterationResult] = []
+        self.iteration_history: list[IterationResult] = []
         self.start_time = datetime.utcnow()
         self._setup_logging()
         self._setup_convergence()
@@ -72,7 +97,7 @@ class CognitiveEnhancer:
                 f"Convergence detection enabled with threshold {self.convergence_detector.config.threshold}"
             )
 
-    async def check_convergence(self, current: str, previous: str) -> Tuple[bool, float]:
+    async def check_convergence(self, current: str, previous: str) -> tuple[bool, float]:
         """
         Check if current iteration has converged with previous
 
@@ -85,7 +110,7 @@ class CognitiveEnhancer:
         return await self.convergence_detector.is_converged(current, previous)
 
     def add_iteration(
-        self, content: str, metadata: Optional[Dict[str, Any]] = None
+        self, content: str, metadata: dict[str, Any] | None = None
     ) -> IterationResult:
         """Add an iteration to the history"""
         iteration = IterationResult(
@@ -100,8 +125,8 @@ class CognitiveEnhancer:
         self,
         processor_func: Callable[[str, int], str],
         initial_input: str,
-        max_iterations: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        max_iterations: int | None = None,
+    ) -> dict[str, Any]:
         """
         Process with automatic convergence detection
 
@@ -151,7 +176,7 @@ class CognitiveEnhancer:
 
         return self._create_final_result()
 
-    def _create_final_result(self) -> Dict[str, Any]:
+    def _create_final_result(self) -> dict[str, Any]:
         """Create final result dictionary"""
         if not self.iteration_history:
             return {
@@ -189,7 +214,7 @@ class CognitiveEnhancer:
             },
         }
 
-    def get_iteration_history(self) -> List[Dict[str, Any]]:
+    def get_iteration_history(self) -> list[dict[str, Any]]:
         """Get iteration history as serializable dictionaries"""
         return [
             {
@@ -203,7 +228,7 @@ class CognitiveEnhancer:
             for r in self.iteration_history
         ]
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get comprehensive statistics"""
         stats = {
             "tool_name": self.config.tool_name,
@@ -240,7 +265,7 @@ class EnhancedThinkingTool(ABC):
     and iteration tracking for your thinking tool.
     """
 
-    def __init__(self, tool_name: str, config: Optional[CognitiveConfig] = None):
+    def __init__(self, tool_name: str, config: CognitiveConfig | None = None):
         self.tool_name = tool_name
         self.config = config or CognitiveConfig(tool_name=tool_name)
         self.enhancer = CognitiveEnhancer(self.config)
@@ -257,9 +282,8 @@ class EnhancedThinkingTool(ABC):
         Returns:
             Processed output for this iteration
         """
-        pass
 
-    async def process(self, initial_input: str) -> Dict[str, Any]:
+    async def process(self, initial_input: str) -> dict[str, Any]:
         """
         Main processing method with automatic convergence detection
 
@@ -273,17 +297,17 @@ class EnhancedThinkingTool(ABC):
 
         return await self.enhancer.process_with_convergence(self.process_iteration, initial_input)
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get processing statistics"""
         return self.enhancer.get_stats()
 
-    def get_history(self) -> List[Dict[str, Any]]:
+    def get_history(self) -> list[dict[str, Any]]:
         """Get iteration history"""
         return self.enhancer.get_iteration_history()
 
 
 # Decorator for adding convergence to existing functions
-def with_convergence(tool_name: str, threshold: Optional[float] = None):
+def with_convergence(tool_name: str, threshold: float | None = None):
     """
     Decorator to add convergence detection to any iterative function
 
@@ -317,7 +341,7 @@ async def iterate_until_convergence(
     tool_name: str = "generic",
     max_iterations: int = 10,
     threshold: float = 0.95,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Utility function to iterate any processor until convergence
 
@@ -339,4 +363,3 @@ async def iterate_until_convergence(
     return await enhancer.process_with_convergence(
         lambda x, i: processor(x), initial_input, max_iterations
     )
-

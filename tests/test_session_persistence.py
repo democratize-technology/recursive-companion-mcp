@@ -5,12 +5,13 @@ Tests for session persistence functionality.
 import asyncio
 import json
 import os
-import pytest
 import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, patch
+
+import pytest
 
 from session_persistence import SessionPersistenceManager, SessionSnapshot
 

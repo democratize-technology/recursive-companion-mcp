@@ -2,27 +2,24 @@
 Extended tests for MCP Server - achieving 100% coverage
 """
 
-import pytest
 import asyncio
 import json
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime
-import numpy as np
 import os
-
 import sys
+from datetime import datetime
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 sys.path.insert(0, "./src")
-from server import main
 from bedrock_client import BedrockClient
-from refine_engine import RefineEngine
-from validation import SecurityValidator
-from error_handling import create_ai_error_response
 from config import config
+from error_handling import create_ai_error_response
+from validation import SecurityValidator
 
 MAX_PROMPT_LENGTH = config.max_prompt_length
-from incremental_engine import IncrementalRefineEngine, RefinementSession, RefinementStatus
 from domains import DomainDetector
+from incremental_engine import IncrementalRefineEngine
 
 
 class TestBedrockClientExtended:
@@ -55,7 +52,6 @@ class TestBedrockClientExtended:
 
             # BedrockClient.generate_text doesn't exist in the actual implementation
             # This test should be removed or updated to test actual methods
-            pass
 
     @pytest.mark.asyncio
     async def test_bedrock_generate_embeddings_error(self):
@@ -68,7 +64,6 @@ class TestBedrockClientExtended:
 
             # BedrockClient.generate_embeddings doesn't exist in the actual implementation
             # This test should be removed or updated to test actual methods
-            pass
 
 
 class TestSecurityValidator:
@@ -177,7 +172,6 @@ class TestMCPServerTools:
     @pytest.mark.asyncio
     async def test_start_refinement_no_engine(self):
         """Test start_refinement when engine is not initialized"""
-        from mcp.types import TextContent
 
         # Mock the handle_call_tool function behavior
         with patch("server.incremental_engine", None):
@@ -191,7 +185,6 @@ class TestMCPServerTools:
     @pytest.mark.asyncio
     async def test_continue_refinement_no_session(self):
         """Test continue_refinement with no session ID"""
-        from mcp.types import TextContent
 
         mock_engine = Mock(spec=IncrementalRefineEngine)
         mock_session_manager = Mock()
@@ -341,7 +334,6 @@ class TestMCPServerInitialization:
     @pytest.mark.asyncio
     async def test_server_tool_descriptions(self):
         """Test that all tools have proper descriptions"""
-        from server import server
 
         # Mock server tools
         expected_tools = [

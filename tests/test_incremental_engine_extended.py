@@ -2,22 +2,15 @@
 Extended tests for IncrementalRefineEngine - achieving 100% coverage
 """
 
-import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timedelta
-import numpy as np
-
 import sys
+from unittest.mock import AsyncMock, Mock
+
+import numpy as np
+import pytest
 
 sys.path.insert(0, "./src")
-from incremental_engine import (
-    IncrementalRefineEngine,
-    RefinementSession,
-    RefinementStatus,
-    SessionManager,
-)
 from domains import DomainDetector
+from incremental_engine import IncrementalRefineEngine, RefinementSession, RefinementStatus
 from validation import SecurityValidator
 
 

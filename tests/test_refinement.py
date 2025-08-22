@@ -2,22 +2,19 @@
 Tests for Incremental Refinement Engine
 """
 
-import pytest
-import asyncio
-import json
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime
-import numpy as np
-
 # Import components from our modules
 import sys
+from datetime import datetime
+from unittest.mock import AsyncMock, Mock
+
+import numpy as np
+import pytest
 
 sys.path.insert(0, "./src")
 from bedrock_client import BedrockClient
-from refine_engine import RefineEngine
+from config import config
 from domains import DomainDetector
 from validation import SecurityValidator
-from config import config
 
 MAX_PROMPT_LENGTH = config.max_prompt_length
 from incremental_engine import (

@@ -1,3 +1,27 @@
+#!/usr/bin/env python3
+# MIT License
+#
+# Copyright (c) 2025 Jeremy
+# Based on work by Hank Besser (https://github.com/hankbesser/recursive-companion)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 """
 Session persistence layer for storing and recovering refinement sessions.
 """
@@ -8,7 +32,7 @@ import logging
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,12 +44,12 @@ class SessionSnapshot:
     session_id: str
     state: str
     iteration: int
-    draft: Optional[str]
-    critiques: List[Dict[str, Any]]
-    revisions: List[str]
-    domain: Optional[str]
+    draft: str | None
+    critiques: list[dict[str, Any]]
+    revisions: list[str]
+    domain: str | None
     timestamp: float
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
 
 class SessionPersistenceManager:
@@ -36,7 +60,7 @@ class SessionPersistenceManager:
     but can be extended to use Redis, SQLite, or other backends.
     """
 
-    def __init__(self, storage_path: Optional[str] = None):
+    def __init__(self, storage_path: str | None = None):
         """
         Initialize persistence manager.
 
@@ -59,7 +83,7 @@ class SessionPersistenceManager:
             self._storage_available = False
 
         # Session write lock to prevent concurrent writes
-        self._write_locks: Dict[str, asyncio.Lock] = {}
+        self._write_locks: dict[str, asyncio.Lock] = {}
 
         if self._storage_available:
             logger.info(f"Session persistence initialized at: {self.storage_path}")
@@ -77,7 +101,7 @@ class SessionPersistenceManager:
             self._write_locks[session_id] = asyncio.Lock()
         return self._write_locks[session_id]
 
-    async def save_session(self, session_data: Dict[str, Any]) -> bool:
+    async def save_session(self, session_data: dict[str, Any]) -> bool:
         """
         Save session data to persistent storage.
 
@@ -125,12 +149,12 @@ class SessionPersistenceManager:
                 logger.error(f"Failed to save session {session_id}: {e}")
                 return False
 
-    def _write_session_file(self, path: Path, data: Dict[str, Any]):
+    def _write_session_file(self, path: Path, data: dict[str, Any]):
         """Synchronous file write for executor."""
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
-    async def load_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+    async def load_session(self, session_id: str) -> dict[str, Any] | None:
         """
         Load session data from persistent storage.
 
@@ -161,9 +185,9 @@ class SessionPersistenceManager:
             logger.error(f"Failed to load session {session_id}: {e}")
             return None
 
-    def _read_session_file(self, path: Path) -> Dict[str, Any]:
+    def _read_session_file(self, path: Path) -> dict[str, Any]:
         """Synchronous file read for executor."""
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
 
     async def delete_session(self, session_id: str) -> bool:
@@ -198,7 +222,7 @@ class SessionPersistenceManager:
                 logger.error(f"Failed to delete session {session_id}: {e}")
                 return False
 
-    async def list_sessions(self) -> List[Dict[str, Any]]:
+    async def list_sessions(self) -> list[dict[str, Any]]:
         """
         List all persisted sessions with metadata.
 
@@ -246,7 +270,7 @@ class SessionPersistenceManager:
             logger.error(f"Failed to list sessions: {e}")
             return []
 
-    def _list_session_files(self) -> List[Path]:
+    def _list_session_files(self) -> list[Path]:
         """List all session files in storage directory."""
         return list(self.storage_path.glob("session_*.json"))
 
@@ -258,7 +282,7 @@ class SessionPersistenceManager:
             max_age_seconds: Maximum age in seconds (default 7 days)
         """
         try:
-            current_time = time.time()
+            time.time()
             sessions = await self.list_sessions()
 
             for session_info in sessions:
@@ -270,7 +294,7 @@ class SessionPersistenceManager:
         except Exception as e:
             logger.error(f"Failed to cleanup old sessions: {e}")
 
-    async def create_snapshot(self, session_data: Dict[str, Any]) -> SessionSnapshot:
+    async def create_snapshot(self, session_data: dict[str, Any]) -> SessionSnapshot:
         """
         Create a snapshot of current session state.
 
@@ -322,7 +346,7 @@ class SessionPersistenceManager:
             logger.error(f"Failed to save snapshot: {e}")
             return False
 
-    def _write_snapshot_file(self, path: Path, data: Dict[str, Any]):
+    def _write_snapshot_file(self, path: Path, data: dict[str, Any]):
         """Write snapshot file synchronously."""
         with open(path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
@@ -347,7 +371,7 @@ class SessionPersistenceManager:
             # Convert other types to string
             return str(obj)
 
-    async def get_session_size(self, session_id: str) -> Optional[int]:
+    async def get_session_size(self, session_id: str) -> int | None:
         """
         Get the size of a persisted session in bytes.
 

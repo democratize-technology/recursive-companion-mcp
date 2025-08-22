@@ -1,22 +1,47 @@
+#!/usr/bin/env python3
+# MIT License
+#
+# Copyright (c) 2025 Jeremy
+# Based on work by Hank Besser (https://github.com/hankbesser/recursive-companion)
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 """
 Session-based Refinement Engine for Recursive Companion MCP
 Implements incremental refinement to avoid timeouts and show progress
 """
 
 import asyncio
+import logging
 import uuid
-from typing import Dict, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-import logging
+from typing import Any
 
+from convergence import ConvergenceDetector
 from domains import get_domain_system_prompt
 from session_persistence import persistence_manager
-from convergence import ConvergenceDetector
 
 try:
     from chain_of_thought import TOOL_SPECS, AsyncChainOfThoughtProcessor
+
     COT_AVAILABLE = True
 except ImportError:
     COT_AVAILABLE = False
@@ -55,10 +80,10 @@ class RefinementSession:
     iterations_history: list = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.utcnow)
     updated_at: datetime = field(default_factory=datetime.utcnow)
-    error_message: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    error_message: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert session to dictionary for JSON serialization"""
         return {
             "session_id": self.session_id,
@@ -86,13 +111,13 @@ class SessionManager:
     """Manages refinement sessions with persistence support"""
 
     def __init__(self):
-        self.sessions: Dict[str, RefinementSession] = {}
+        self.sessions: dict[str, RefinementSession] = {}
         self._cleanup_task = None
         self._persistence_enabled = True
         self._autosave_interval = 30  # seconds
 
     async def create_session(
-        self, prompt: str, domain: str, config: Dict[str, Any]
+        self, prompt: str, domain: str, config: dict[str, Any]
     ) -> RefinementSession:
         """Create a new refinement session with persistence"""
         session_id = str(uuid.uuid4())
@@ -114,7 +139,7 @@ class SessionManager:
 
         return session
 
-    async def get_session(self, session_id: str) -> Optional[RefinementSession]:
+    async def get_session(self, session_id: str) -> RefinementSession | None:
         """Get a session by ID, loading from persistence if needed"""
         # Check in-memory sessions first
         if session_id in self.sessions:
@@ -141,7 +166,7 @@ class SessionManager:
             logger.error(f"Failed to persist session {session.session_id}: {e}")
             return False
 
-    def _serialize_session(self, session: RefinementSession) -> Dict[str, Any]:
+    def _serialize_session(self, session: RefinementSession) -> dict[str, Any]:
         """Serialize session for persistence"""
         return {
             "session_id": session.session_id,
@@ -162,7 +187,7 @@ class SessionManager:
             "metadata": session.metadata,
         }
 
-    def _reconstruct_session(self, data: Dict[str, Any]) -> Optional[RefinementSession]:
+    def _reconstruct_session(self, data: dict[str, Any]) -> RefinementSession | None:
         """Reconstruct a session from persisted data"""
         try:
             return RefinementSession(
@@ -187,7 +212,7 @@ class SessionManager:
             logger.error(f"Failed to reconstruct session: {e}")
             return None
 
-    async def update_session(self, session_id: str, **updates) -> Optional[RefinementSession]:
+    async def update_session(self, session_id: str, **updates) -> RefinementSession | None:
         """Update a session with persistence"""
         session = await self.get_session(session_id)
         if session:
@@ -248,23 +273,25 @@ class IncrementalRefineEngine:
         self.validator = validator
         self.session_manager = SessionManager()
         self.convergence_detector = ConvergenceDetector()
-        
+
         # Initialize Chain of Thought availability check
         if not COT_AVAILABLE:
             logger.warning(
                 "chain-of-thought-tool not available. Install with: pip install chain-of-thought-tool"
             )
-        
-        logger.info(f"Chain of Thought enhancement: {'available' if COT_AVAILABLE else 'not available'}")
+
+        logger.info(
+            f"Chain of Thought enhancement: {'available' if COT_AVAILABLE else 'not available'}"
+        )
         if COT_AVAILABLE:
             logger.info("Chain of Thought will enhance draft, critique, and synthesis steps")
-    
+
     def get_cot_tools(self) -> list[dict[str, Any]]:
         """Get Chain of Thought tool specifications for Bedrock."""
         if not COT_AVAILABLE:
             return []
         return TOOL_SPECS
-    
+
     async def _process_with_cot(self, processor, request) -> str:
         """Process a request with Chain of Thought reasoning."""
         try:
@@ -273,29 +300,28 @@ class IncrementalRefineEngine:
                 basic_request = request.copy()
                 if "toolConfig" in basic_request:
                     del basic_request["toolConfig"]
-                
+
                 # Extract the prompt from the request
                 messages = basic_request.get("messages", [])
                 if messages:
                     prompt = messages[0].get("content", [{}])[0].get("text", "")
                     system_prompt = basic_request.get("system", [{}])[0].get("text", "")
                     return await self.bedrock.generate_text(prompt, system_prompt)
-                
+
                 return "No response generated"
-            
+
             # Use CoT processor for enhanced reasoning
             result = await processor.process_request(
-                bedrock_client=self.bedrock.bedrock_client,
-                request=request
+                bedrock_client=self.bedrock.bedrock_client, request=request
             )
-            
+
             # Extract the final response text
             if "output" in result and "message" in result["output"]:
                 content = result["output"]["message"].get("content", [])
                 for item in content:
                     if item.get("text"):
                         return item["text"]
-            
+
             return "No response generated"
         except Exception as e:
             logger.error(f"CoT processing error: {e}")
@@ -303,18 +329,18 @@ class IncrementalRefineEngine:
             basic_request = request.copy()
             if "toolConfig" in basic_request:
                 del basic_request["toolConfig"]
-            
+
             messages = basic_request.get("messages", [])
             if messages:
                 prompt = messages[0].get("content", [{}])[0].get("text", "")
                 system_prompt = basic_request.get("system", [{}])[0].get("text", "")
                 return await self.bedrock.generate_text(prompt, system_prompt)
-            
+
             return "Error processing request"
 
     async def start_refinement(
-        self, prompt: str, domain: str = "auto", config: Optional[Dict] = None
-    ) -> Dict[str, Any]:
+        self, prompt: str, domain: str = "auto", config: dict | None = None
+    ) -> dict[str, Any]:
         """Start a new refinement session - returns immediately"""
         is_valid, validation_msg = self.validator.validate_prompt(prompt)
         if not is_valid:
@@ -350,7 +376,7 @@ class IncrementalRefineEngine:
             "next_action": "continue_refinement",
         }
 
-    async def continue_refinement(self, session_id: str) -> Dict[str, Any]:
+    async def continue_refinement(self, session_id: str) -> dict[str, Any]:
         """Continue refinement for one iteration - returns quickly"""
         session = await self.session_manager.get_session(session_id)
         if not session:
@@ -442,16 +468,14 @@ class IncrementalRefineEngine:
 
             return error_response
 
-    async def _do_draft_step(self, session: RefinementSession) -> Dict[str, Any]:
+    async def _do_draft_step(self, session: RefinementSession) -> dict[str, Any]:
         """Generate initial draft with CoT enhancement"""
         system_prompt = self._get_domain_system_prompt(session.domain)
-        
+
         # Create CoT processor for this draft step
         if COT_AVAILABLE:
-            processor = AsyncChainOfThoughtProcessor(
-                conversation_id=f"draft-{session.session_id}"
-            )
-            
+            processor = AsyncChainOfThoughtProcessor(conversation_id=f"draft-{session.session_id}")
+
             # Enhance system prompt with CoT instructions
             enhanced_system_prompt = f"""{system_prompt}
 
@@ -464,19 +488,23 @@ You have access to Chain of Thought tools to structure your reasoning:
 - Set next_step_needed=false when you're ready to give the final draft
 
 Provide a comprehensive, well-structured response to the user's request."""
-            
+
             # Prepare messages for draft generation
-            messages = [{
-                "role": "user",
-                "content": [{
-                    "text": f"""Please provide a comprehensive response to this request:
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": f"""Please provide a comprehensive response to this request:
 
 {session.prompt}
 
 Use chain_of_thought_step to reason through your response systematically. Work through the problem step by step before providing your final answer."""
-                }]
-            }]
-            
+                        }
+                    ],
+                }
+            ]
+
             request = {
                 "modelId": self._get_model_name(),
                 "messages": messages,
@@ -487,17 +515,16 @@ Use chain_of_thought_step to reason through your response systematically. Work t
                     "maxTokens": 4000,
                 },
             }
-            
+
             draft = await self._process_with_cot(processor, request)
         else:
             # Fallback to basic generation without CoT
             draft = await self.bedrock.generate_text(session.prompt, system_prompt)
-        
+
         # Log CoT enhancement details
         logger.info(f"Generating draft with CoT enhancement (available: {COT_AVAILABLE})")
         if COT_AVAILABLE:
             logger.debug(f"Draft generated using Chain of Thought reasoning")
-
 
         await self.session_manager.update_session(
             session.session_id,
@@ -528,29 +555,36 @@ Use chain_of_thought_step to reason through your response systematically. Work t
             },
         }
 
-    async def _do_critique_step(self, session: RefinementSession) -> Dict[str, Any]:
+    async def _do_critique_step(self, session: RefinementSession) -> dict[str, Any]:
         """Generate critiques with CoT enhancement"""
         # Get critique model for faster parallel critiques
         import os
+
         critique_model = os.getenv(
             "CRITIQUE_MODEL_ID",
             os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-sonnet-20240229-v1:0"),
         )
-        
+
         # Define critique types
         critique_types = [
-            ("accuracy and completeness", "Critically analyze this response for accuracy and completeness. Provide specific improvements."),
-            ("clarity and structure", "Evaluate this response for clarity and structure. Suggest how to make it clearer.")
+            (
+                "accuracy and completeness",
+                "Critically analyze this response for accuracy and completeness. Provide specific improvements.",
+            ),
+            (
+                "clarity and structure",
+                "Evaluate this response for clarity and structure. Suggest how to make it clearer.",
+            ),
         ]
-        
+
         critique_tasks = []
-        
+
         for i, (focus, base_prompt) in enumerate(critique_types):
             if COT_AVAILABLE:
                 processor = AsyncChainOfThoughtProcessor(
                     conversation_id=f"critique-{session.session_id}-{i}"
                 )
-                
+
                 enhanced_system_prompt = f"""You are a critical reviewer focused on {focus}.
 
 You have access to Chain of Thought tools to structure your analysis:
@@ -562,11 +596,13 @@ You have access to Chain of Thought tools to structure your analysis:
 - Set next_step_needed=false when you're ready to give the final critique
 
 Provide specific, actionable feedback for improvement."""
-                
-                messages = [{
-                    "role": "user",
-                    "content": [{
-                        "text": f"""Please critically review this response with focus on {focus}:
+
+                messages = [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "text": f"""Please critically review this response with focus on {focus}:
 
 Original Question: {session.prompt}
 
@@ -574,9 +610,11 @@ Response to Review:
 {session.current_draft}
 
 Use chain_of_thought_step to analyze this systematically and provide specific, actionable improvements."""
-                    }]
-                }]
-                
+                            }
+                        ],
+                    }
+                ]
+
                 request = {
                     "modelId": critique_model,
                     "messages": messages,
@@ -587,7 +625,7 @@ Use chain_of_thought_step to analyze this systematically and provide specific, a
                         "maxTokens": 3000,
                     },
                 }
-                
+
                 task = self._process_with_cot(processor, request)
             else:
                 # Fallback to basic critique without CoT
@@ -599,13 +637,17 @@ Response to Review:
 {session.current_draft}
 
 Provide specific, actionable feedback for improvement."""
-                
-                task = self.bedrock.generate_text(critique_prompt, temperature=0.8, model_override=critique_model)
-            
+
+                task = self.bedrock.generate_text(
+                    critique_prompt, temperature=0.8, model_override=critique_model
+                )
+
             critique_tasks.append(task)
-        
+
         # Log CoT enhancement for critiques
-        logger.info(f"Generating {len(critique_tasks)} critiques with CoT enhancement (available: {COT_AVAILABLE})")
+        logger.info(
+            f"Generating {len(critique_tasks)} critiques with CoT enhancement (available: {COT_AVAILABLE})"
+        )
         if COT_AVAILABLE:
             logger.debug(f"Critiques generated using Chain of Thought reasoning")
 
@@ -640,16 +682,16 @@ Provide specific, actionable feedback for improvement."""
             },
         }
 
-    async def _do_revise_step(self, session: RefinementSession) -> Dict[str, Any]:
+    async def _do_revise_step(self, session: RefinementSession) -> dict[str, Any]:
         """Synthesize revision with CoT enhancement and check convergence"""
         system_prompt = self._get_domain_system_prompt(session.domain)
-        
+
         # Create CoT processor for synthesis step
         if COT_AVAILABLE:
             processor = AsyncChainOfThoughtProcessor(
                 conversation_id=f"revise-{session.session_id}-{session.current_iteration}"
             )
-            
+
             # Enhance system prompt with CoT instructions
             enhanced_system_prompt = f"""{system_prompt}
 
@@ -662,17 +704,18 @@ You have access to Chain of Thought tools to structure your synthesis:
 - Set next_step_needed=false when you're ready to give the final revision
 
 Create an improved response that addresses the critiques while maintaining accuracy and clarity."""
-            
+
             # Prepare critique summary
-            critique_summary = "\n\n".join([
-                f"Critique {i+1}: {critique}" 
-                for i, critique in enumerate(session.critiques)
-            ])
-            
-            messages = [{
-                "role": "user",
-                "content": [{
-                    "text": f"""Please create an improved response that addresses these critiques:
+            critique_summary = "\n\n".join(
+                [f"Critique {i+1}: {critique}" for i, critique in enumerate(session.critiques)]
+            )
+
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": f"""Please create an improved response that addresses these critiques:
 
 Original Question: {session.prompt}
 
@@ -683,9 +726,11 @@ Critiques to Address:
 {critique_summary}
 
 Use chain_of_thought_step to reason through your improvements systematically. Create a revised response that addresses the critiques while maintaining accuracy and clarity."""
-                }]
-            }]
-            
+                        }
+                    ],
+                }
+            ]
+
             request = {
                 "modelId": self._get_model_name(),
                 "messages": messages,
@@ -696,15 +741,14 @@ Use chain_of_thought_step to reason through your improvements systematically. Cr
                     "maxTokens": 4000,
                 },
             }
-            
+
             revision = await self._process_with_cot(processor, request)
         else:
             # Fallback to basic synthesis without CoT
-            critique_summary = "\n\n".join([
-                f"Critique {i+1}: {critique}" 
-                for i, critique in enumerate(session.critiques)
-            ])
-            
+            critique_summary = "\n\n".join(
+                [f"Critique {i+1}: {critique}" for i, critique in enumerate(session.critiques)]
+            )
+
             revision_prompt = f"""Please create an improved response that addresses these critiques:
 
 Original Question: {session.prompt}
@@ -716,14 +760,19 @@ Critiques to Address:
 {critique_summary}
 
 Create a revised response that addresses the critiques while maintaining accuracy and clarity."""
-            
-            revision = await self.bedrock.generate_text(revision_prompt, system_prompt, temperature=0.6)
-        
-        # Log CoT enhancement for synthesis
-        logger.info(f"Generating synthesis revision with CoT enhancement (available: {COT_AVAILABLE})")
-        if COT_AVAILABLE:
-            logger.debug(f"Synthesis completed with {len(session.critiques)} critiques using Chain of Thought reasoning")
 
+            revision = await self.bedrock.generate_text(
+                revision_prompt, system_prompt, temperature=0.6
+            )
+
+        # Log CoT enhancement for synthesis
+        logger.info(
+            f"Generating synthesis revision with CoT enhancement (available: {COT_AVAILABLE})"
+        )
+        if COT_AVAILABLE:
+            logger.debug(
+                f"Synthesis completed with {len(session.critiques)} critiques using Chain of Thought reasoning"
+            )
 
         # Calculate convergence
         current_embedding = await self.bedrock.get_embedding(revision)
@@ -812,7 +861,7 @@ Create a revised response that addresses the critiques while maintaining accurac
             response.update(ai_prediction)
             return response
 
-    async def get_status(self, session_id: str) -> Dict[str, Any]:
+    async def get_status(self, session_id: str) -> dict[str, Any]:
         """Get current status of a refinement session"""
         session = await self.session_manager.get_session(session_id)
         if not session:
@@ -845,7 +894,7 @@ Create a revised response that addresses the critiques while maintaining accurac
             ],
         }
 
-    async def get_final_result(self, session_id: str) -> Dict[str, Any]:
+    async def get_final_result(self, session_id: str) -> dict[str, Any]:
         """Get the final refined result"""
         session = await self.session_manager.get_session(session_id)
         if not session:
@@ -901,7 +950,7 @@ Create a revised response that addresses the critiques while maintaining accurac
             "thinking_history": session.iterations_history,
         }
 
-    async def abort_refinement(self, session_id: str) -> Dict[str, Any]:
+    async def abort_refinement(self, session_id: str) -> dict[str, Any]:
         """Stop refinement and return best result so far"""
         session = await self.session_manager.get_session(session_id)
         if not session:
@@ -949,7 +998,7 @@ Create a revised response that addresses the critiques while maintaining accurac
             "reason": "User requested abort",
         }
 
-    def _format_progress(self, session: RefinementSession) -> Dict[str, Any]:
+    def _format_progress(self, session: RefinementSession) -> dict[str, Any]:
         """Create detailed progress information"""
         # Estimate steps: draft(1) + (critique(1) + revise(1)) * iterations
         estimated_total_steps = 1 + (2 * session.max_iterations)

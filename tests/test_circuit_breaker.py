@@ -3,17 +3,15 @@ Tests for circuit breaker implementation.
 """
 
 import asyncio
+
 import pytest
-import time
-from unittest.mock import Mock, AsyncMock, patch
 
 from circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
-    CircuitBreakerOpenError,
     CircuitBreakerManager,
+    CircuitBreakerOpenError,
     CircuitState,
-    circuit_manager,
 )
 
 

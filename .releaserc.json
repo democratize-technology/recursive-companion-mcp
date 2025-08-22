@@ -1,0 +1,112 @@
+{
+  "branches": [
+    "main",
+    {
+      "name": "develop",
+      "prerelease": "beta"
+    }
+  ],
+  "plugins": [
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits",
+        "releaseRules": [
+          {"type": "feat", "release": "minor"},
+          {"type": "fix", "release": "patch"},
+          {"type": "perf", "release": "patch"},
+          {"type": "revert", "release": "patch"},
+          {"type": "docs", "release": false},
+          {"type": "style", "release": false},
+          {"type": "chore", "release": false},
+          {"type": "refactor", "release": "patch"},
+          {"type": "test", "release": false},
+          {"type": "build", "release": false},
+          {"type": "ci", "release": false},
+          {"breaking": true, "release": "major"},
+          {"scope": "deps", "release": "patch"},
+          {"scope": "deps-dev", "release": false}
+        ],
+        "parserOpts": {
+          "noteKeywords": ["BREAKING CHANGE", "BREAKING CHANGES", "BREAKING"]
+        }
+      }
+    ],
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits",
+        "writerOpts": {
+          "commitsSort": ["subject", "scope"],
+          "transform": {
+            "type": "feat",
+            "section": "✨ Features"
+          }
+        },
+        "presetConfig": {
+          "types": [
+            {"type": "feat", "section": "✨ Features", "hidden": false},
+            {"type": "fix", "section": "🐛 Bug Fixes", "hidden": false},
+            {"type": "perf", "section": "⚡ Performance Improvements", "hidden": false},
+            {"type": "revert", "section": "⏪ Reverts", "hidden": false},
+            {"type": "docs", "section": "📚 Documentation", "hidden": false},
+            {"type": "style", "section": "💄 Styles", "hidden": true},
+            {"type": "refactor", "section": "♻️ Code Refactoring", "hidden": false},
+            {"type": "test", "section": "✅ Tests", "hidden": true},
+            {"type": "build", "section": "🔨 Build System", "hidden": false},
+            {"type": "ci", "section": "🔧 CI/CD", "hidden": true},
+            {"type": "chore", "section": "🧹 Chores", "hidden": true},
+            {"type": "deps", "section": "📦 Dependencies", "hidden": false}
+          ]
+        }
+      }
+    ],
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md",
+        "changelogTitle": "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\nThe format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),\nand this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)."
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "python scripts/update_version.py ${nextRelease.version}",
+        "publishCmd": "echo 'Version ${nextRelease.version} ready for publication'"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": [
+          "CHANGELOG.md",
+          "pyproject.toml"
+        ],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {
+            "path": "dist/*.whl",
+            "label": "Python Wheel"
+          },
+          {
+            "path": "dist/*.tar.gz",
+            "label": "Source Distribution"
+          }
+        ],
+        "addReleases": "bottom",
+        "draftRelease": false,
+        "prerelease": false
+      }
+    ]
+  ],
+  "tagFormat": "v${version}",
+  "repositoryUrl": "https://github.com/democratize-technology/recursive-companion-mcp",
+  "debug": false,
+  "ci": true,
+  "dryRun": false
+}

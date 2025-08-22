@@ -2,22 +2,20 @@
 """
 Test suite for Recursive Companion MCP Server
 """
-import pytest
 import json
-import asyncio
-from unittest.mock import Mock, patch, AsyncMock
-from datetime import datetime
 
 # Import components to test
 import sys
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 sys.path.insert(0, "./src")
-from server import handle_list_tools, handle_call_tool
-from validation import SecurityValidator
-from domains import DomainDetector
 from bedrock_client import BedrockClient
+from domains import DomainDetector
 from refine_engine import RefineEngine
-from session_manager import RefinementIteration, RefinementResult
+from server import handle_list_tools
+from validation import SecurityValidator
 
 
 class TestSecurityValidator:
@@ -209,7 +207,7 @@ class TestBedrockClient:
             assert mock_runtime.invoke_model.call_count == 1  # Still 1, not 2
 
             # Different text should invoke model again
-            embedding3 = await client.get_embedding("Different text")
+            await client.get_embedding("Different text")
             assert mock_runtime.invoke_model.call_count == 2
 
     @pytest.mark.asyncio
@@ -245,7 +243,7 @@ class TestBedrockClient:
             mock_boto.return_value.list_foundation_models.return_value = {"models": []}
 
             client = BedrockClient()
-            executor = client._executor
+            client._executor
 
             # Trigger cleanup
             del client

@@ -7,29 +7,29 @@ echo "🚀 Setting up Recursive Companion MCP..."
 if command -v uv &> /dev/null; then
     echo "✓ Found uv"
     echo "📦 Installing dependencies with uv..."
-    uv pip install -r requirements.txt
+    uv sync --dev
 else
-    echo "⚠️  uv not found, using standard pip"
-    
+    echo "⚠️  uv not found, using standard pip with pyproject.toml"
+
     # Check Python version
     python_version=$(python3 --version 2>&1 | awk '{print $2}')
     echo "✓ Found Python $python_version"
-    
+
     # Create virtual environment
     echo "📦 Creating virtual environment..."
     python3 -m venv venv
-    
+
     # Activate virtual environment
     echo "🔧 Activating virtual environment..."
     source venv/bin/activate
-    
+
     # Upgrade pip
     echo "📦 Upgrading pip..."
     pip install --upgrade pip
-    
-    # Install requirements
-    echo "📦 Installing dependencies..."
-    pip install -r requirements.txt
+
+    # Install project in development mode
+    echo "📦 Installing project and dependencies..."
+    pip install -e ".[dev]"
 fi
 
 # Copy environment file
