@@ -623,7 +623,7 @@ class TestBasicTextConvergence:
 
         # Similarity should be based on max length
         max_len = max(len(current), len(previous))
-        common_chars = sum(c1 == c2 for c1, c2 in zip(current, previous))
+        common_chars = sum(c1 == c2 for c1, c2 in zip(current, previous, strict=False))
         expected_score = common_chars / max_len
 
         assert abs(score - expected_score) < 1e-10

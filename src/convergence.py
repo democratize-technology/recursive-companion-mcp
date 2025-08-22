@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # MIT License
 #
-# Copyright (c) 2025 Jeremy
+# Copyright (c) 2025 Recursive Companion Contributors
 # Based on work by Hank Besser (https://github.com/hankbesser/recursive-companion)
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -287,7 +287,7 @@ def basic_text_convergence(
         return True, 1.0
 
     # Calculate Levenshtein distance approximation
-    common_chars = sum(c1 == c2 for c1, c2 in zip(current, previous))
+    common_chars = sum(c1 == c2 for c1, c2 in zip(current, previous, strict=False))
     similarity = common_chars / max_len
 
     return similarity >= threshold, similarity

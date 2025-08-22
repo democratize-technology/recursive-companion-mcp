@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # MIT License
 #
-# Copyright (c) 2025 Jeremy
+# Copyright (c) 2025 Recursive Companion Contributors
 # Based on work by Hank Besser (https://github.com/hankbesser/recursive-companion)
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -30,5 +30,5 @@ Inspired by Hank Besser's recursive-companion.
 """
 
 __version__ = "1.0.0"
-__author__ = "Jeremy"
+__author__ = "Recursive Companion Contributors"
 __license__ = "MIT"

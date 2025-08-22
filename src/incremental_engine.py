@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # MIT License
 #
-# Copyright (c) 2025 Jeremy
+# Copyright (c) 2025 Recursive Companion Contributors
 # Based on work by Hank Besser (https://github.com/hankbesser/recursive-companion)
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -524,7 +524,7 @@ Use chain_of_thought_step to reason through your response systematically. Work t
         # Log CoT enhancement details
         logger.info(f"Generating draft with CoT enhancement (available: {COT_AVAILABLE})")
         if COT_AVAILABLE:
-            logger.debug(f"Draft generated using Chain of Thought reasoning")
+            logger.debug("Draft generated using Chain of Thought reasoning")
 
         await self.session_manager.update_session(
             session.session_id,
@@ -649,7 +649,7 @@ Provide specific, actionable feedback for improvement."""
             f"Generating {len(critique_tasks)} critiques with CoT enhancement (available: {COT_AVAILABLE})"
         )
         if COT_AVAILABLE:
-            logger.debug(f"Critiques generated using Chain of Thought reasoning")
+            logger.debug("Critiques generated using Chain of Thought reasoning")
 
         # Generate critiques in parallel
         critiques = await asyncio.gather(*critique_tasks, return_exceptions=True)

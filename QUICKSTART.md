@@ -3,7 +3,7 @@
 ## 1. Run Setup Script
 
 ```bash
-cd /Users/jeremy/Development/hacks/recursive-companion-mcp
+cd /path/to/recursive-companion-mcp
 
 # First time setup with uv:
 uv sync
@@ -34,7 +34,7 @@ Add to `~/.config/claude/claude_desktop_config.json`:
     "recursive-companion": {
       "command": "uv",
       "args": ["run", "python", "src/server.py"],
-      "cwd": "/Users/jeremy/Development/hacks/recursive-companion-mcp",
+      "cwd": "/path/to/recursive-companion-mcp",
       "env": {
         "AWS_REGION": "us-east-1",
         "BEDROCK_MODEL_ID": "anthropic.claude-3-sonnet-20240229-v1:0"
@@ -49,8 +49,8 @@ Add to `~/.config/claude/claude_desktop_config.json`:
 {
   "mcpServers": {
     "recursive-companion": {
-      "command": "/Users/jeremy/Development/hacks/recursive-companion-mcp/.venv/bin/python",
-      "args": ["/Users/jeremy/Development/hacks/recursive-companion-mcp/src/server.py"],
+      "command": "/path/to/recursive-companion-mcp/.venv/bin/python",
+      "args": ["/path/to/recursive-companion-mcp/src/server.py"],
       "env": {
         "AWS_REGION": "us-east-1",
         "BEDROCK_MODEL_ID": "anthropic.claude-3-sonnet-20240229-v1:0"
@@ -67,9 +67,9 @@ Add to `~/.config/claude/claude_desktop_config.json`:
 {
   "mcpServers": {
     "recursive-companion": {
-      "command": "/Users/jeremy/Development/hacks/recursive-companion-mcp/.venv/bin/python",
+      "command": "/path/to/recursive-companion-mcp/.venv/bin/python",
       "args": ["src/server.py"],
-      "cwd": "/Users/jeremy/Development/hacks/recursive-companion-mcp",
+      "cwd": "/path/to/recursive-companion-mcp",
       "env": {
         "AWS_REGION": "us-east-1",
         "BEDROCK_MODEL_ID": "anthropic.claude-3-sonnet-20240229-v1:0"

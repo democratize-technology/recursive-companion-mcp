@@ -7,7 +7,7 @@ This project is based on **recursive-companion** by Hank Besser:
 - Core refinement logic and approach
 
 ## This Implementation
-MCP adaptation and incremental processing by Jeremy:
+MCP adaptation and incremental processing by Recursive Companion Contributors:
 - Session-based architecture to avoid timeouts
 - AWS Bedrock integration
 - Domain detection and optimization

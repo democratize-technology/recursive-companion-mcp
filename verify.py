@@ -38,7 +38,7 @@ try:
     result = subprocess.run(["aws", "sts", "get-caller-identity"], capture_output=True, text=True)
     if result.returncode == 0:
         identity = json.loads(result.stdout)
-        print(f"✓ AWS credentials configured")
+        print("✓ AWS credentials configured")
         print(f"  Account: {identity.get('Account', 'Unknown')}")
         print(f"  User: {identity.get('Arn', 'Unknown').split('/')[-1]}")
     else:
