@@ -311,8 +311,8 @@ class IncrementalRefineEngine:
                 return "No response generated"
 
             # Use CoT processor for enhanced reasoning
-            result = await processor.process_request(
-                bedrock_client=self.bedrock.bedrock_client, request=request
+            result = await processor.process_tool_loop(
+                bedrock_client=self.bedrock.bedrock_client, initial_request=request
             )
 
             # Extract the final response text
