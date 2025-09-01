@@ -27,6 +27,7 @@ Recursive Companion MCP Server - AWS Bedrock Edition
 Based on Hank Besser's recursive-companion: https://github.com/hankbesser/recursive-companion
 Implements iterative refinement through Draft → Critique → Revise → Converge cycles
 """
+
 import asyncio
 import json
 import logging
@@ -78,7 +79,10 @@ async def handle_list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "prompt": {"type": "string", "description": "The question or task to refine"},
+                    "prompt": {
+                        "type": "string",
+                        "description": "The question or task to refine",
+                    },
                     "domain": {
                         "type": "string",
                         "enum": [
@@ -121,7 +125,10 @@ async def handle_list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "session_id": {"type": "string", "description": "The refinement session ID"}
+                    "session_id": {
+                        "type": "string",
+                        "description": "The refinement session ID",
+                    }
                 },
                 "required": ["session_id"],
             },
@@ -132,7 +139,10 @@ async def handle_list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "session_id": {"type": "string", "description": "The refinement session ID"}
+                    "session_id": {
+                        "type": "string",
+                        "description": "The refinement session ID",
+                    }
                 },
                 "required": ["session_id"],
             },
@@ -169,7 +179,10 @@ async def handle_list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "prompt": {"type": "string", "description": "The question to refine"},
+                    "prompt": {
+                        "type": "string",
+                        "description": "The question to refine",
+                    },
                     "max_wait": {
                         "type": "number",
                         "default": 30,
@@ -196,7 +209,10 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                     TextContent(
                         type="text",
                         text=json.dumps(
-                            {"error": "Incremental engine not initialized", "success": False},
+                            {
+                                "error": "Incremental engine not initialized",
+                                "success": False,
+                            },
                             indent=2,
                         ),
                     )
@@ -226,7 +242,10 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                     TextContent(
                         type="text",
                         text=json.dumps(
-                            {"error": "Incremental engine not initialized", "success": False},
+                            {
+                                "error": "Incremental engine not initialized",
+                                "success": False,
+                            },
                             indent=2,
                         ),
                     )
@@ -275,7 +294,10 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 TextContent(
                     type="text",
                     text=json.dumps(
-                        {"error": f"Failed to continue refinement: {str(e)}", "success": False},
+                        {
+                            "error": f"Failed to continue refinement: {str(e)}",
+                            "success": False,
+                        },
                         indent=2,
                     ),
                 )
@@ -288,7 +310,10 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                     TextContent(
                         type="text",
                         text=json.dumps(
-                            {"error": "Incremental engine not initialized", "success": False},
+                            {
+                                "error": "Incremental engine not initialized",
+                                "success": False,
+                            },
                             indent=2,
                         ),
                     )
@@ -305,7 +330,8 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 TextContent(
                     type="text",
                     text=json.dumps(
-                        {"error": f"Failed to get status: {str(e)}", "success": False}, indent=2
+                        {"error": f"Failed to get status: {str(e)}", "success": False},
+                        indent=2,
                     ),
                 )
             ]
@@ -317,7 +343,10 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                     TextContent(
                         type="text",
                         text=json.dumps(
-                            {"error": "Incremental engine not initialized", "success": False},
+                            {
+                                "error": "Incremental engine not initialized",
+                                "success": False,
+                            },
                             indent=2,
                         ),
                     )
@@ -334,7 +363,10 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 TextContent(
                     type="text",
                     text=json.dumps(
-                        {"error": f"Failed to get final result: {str(e)}", "success": False},
+                        {
+                            "error": f"Failed to get final result: {str(e)}",
+                            "success": False,
+                        },
                         indent=2,
                     ),
                 )
@@ -347,7 +379,10 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                     TextContent(
                         type="text",
                         text=json.dumps(
-                            {"error": "Incremental engine not initialized", "success": False},
+                            {
+                                "error": "Incremental engine not initialized",
+                                "success": False,
+                            },
                             indent=2,
                         ),
                     )
@@ -358,7 +393,8 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 TextContent(
                     type="text",
                     text=json.dumps(
-                        {"success": True, "sessions": sessions, "count": len(sessions)}, indent=2
+                        {"success": True, "sessions": sessions, "count": len(sessions)},
+                        indent=2,
                     ),
                 )
             ]
@@ -369,7 +405,11 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 TextContent(
                     type="text",
                     text=json.dumps(
-                        {"error": f"Failed to list sessions: {str(e)}", "success": False}, indent=2
+                        {
+                            "error": f"Failed to list sessions: {str(e)}",
+                            "success": False,
+                        },
+                        indent=2,
                     ),
                 )
             ]
@@ -416,7 +456,10 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 TextContent(
                     type="text",
                     text=json.dumps(
-                        {"success": False, "error": f"Failed to get current session: {str(e)}"},
+                        {
+                            "success": False,
+                            "error": f"Failed to get current session: {str(e)}",
+                        },
                         indent=2,
                     ),
                 )
@@ -429,7 +472,10 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                     TextContent(
                         type="text",
                         text=json.dumps(
-                            {"error": "Incremental engine not initialized", "success": False},
+                            {
+                                "error": "Incremental engine not initialized",
+                                "success": False,
+                            },
                             indent=2,
                         ),
                     )
@@ -459,7 +505,10 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 TextContent(
                     type="text",
                     text=json.dumps(
-                        {"error": f"Failed to abort refinement: {str(e)}", "success": False},
+                        {
+                            "error": f"Failed to abort refinement: {str(e)}",
+                            "success": False,
+                        },
                         indent=2,
                     ),
                 )
@@ -472,7 +521,10 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                     TextContent(
                         type="text",
                         text=json.dumps(
-                            {"error": "Incremental engine not initialized", "success": False},
+                            {
+                                "error": "Incremental engine not initialized",
+                                "success": False,
+                            },
                             indent=2,
                         ),
                     )
@@ -552,7 +604,11 @@ async def handle_call_tool(name: str, arguments: dict) -> list[TextContent]:
                 TextContent(
                     type="text",
                     text=json.dumps(
-                        {"error": f"Failed to quick refine: {str(e)}", "success": False}, indent=2
+                        {
+                            "error": f"Failed to quick refine: {str(e)}",
+                            "success": False,
+                        },
+                        indent=2,
                     ),
                 )
             ]

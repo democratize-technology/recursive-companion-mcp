@@ -115,7 +115,11 @@ class TestSecurityUtilsCoverage:
                     "password": ["plain_text_pwd", {"inner_pwd": "secret"}],
                     "api_keys": [123, True, None, "actual_key"],
                 },
-                "metadata": {"count": 42, "active": True, "tags": ["tag1", "tag2", 999]},
+                "metadata": {
+                    "count": 42,
+                    "active": True,
+                    "tags": ["tag1", "tag2", 999],
+                },
             }
         }
 

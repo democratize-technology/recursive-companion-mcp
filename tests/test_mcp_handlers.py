@@ -74,7 +74,11 @@ class TestMCPHandlers:
         """Test continue_refinement with auto session tracking"""
         mock_engine = Mock(spec=IncrementalRefineEngine)
         mock_engine.continue_refinement = AsyncMock(
-            return_value={"success": True, "status": "draft_complete", "continue_needed": True}
+            return_value={
+                "success": True,
+                "status": "draft_complete",
+                "continue_needed": True,
+            }
         )
 
         with patch("server.incremental_engine", mock_engine):
@@ -181,7 +185,11 @@ class TestMCPHandlers:
         """Test abort_refinement handler"""
         mock_engine = Mock(spec=IncrementalRefineEngine)
         mock_engine.abort_refinement = AsyncMock(
-            return_value={"success": True, "status": "aborted", "final_answer": "Partial result"}
+            return_value={
+                "success": True,
+                "status": "aborted",
+                "final_answer": "Partial result",
+            }
         )
 
         with patch("server.incremental_engine", mock_engine):
@@ -198,13 +206,21 @@ class TestMCPHandlers:
 
         # Mock the refinement flow
         mock_engine.start_refinement = AsyncMock(
-            return_value={"success": True, "session_id": "quick-123", "status": "initialized"}
+            return_value={
+                "success": True,
+                "session_id": "quick-123",
+                "status": "initialized",
+            }
         )
 
         mock_engine.continue_refinement = AsyncMock(
             side_effect=[
                 {"success": True, "status": "draft_complete", "continue_needed": True},
-                {"success": True, "status": "critique_complete", "continue_needed": True},
+                {
+                    "success": True,
+                    "status": "critique_complete",
+                    "continue_needed": True,
+                },
                 {
                     "success": True,
                     "status": "converged",
@@ -237,7 +253,11 @@ class TestMCPHandlers:
         mock_engine = Mock(spec=IncrementalRefineEngine)
 
         mock_engine.start_refinement = AsyncMock(
-            return_value={"success": True, "session_id": "quick-timeout", "status": "initialized"}
+            return_value={
+                "success": True,
+                "session_id": "quick-timeout",
+                "status": "initialized",
+            }
         )
 
         # Simulate timeout with slow refinement
@@ -325,16 +345,7 @@ class TestServerInitialization:
         from server import server
 
         # Check server has expected tools
-        expected_tools = {
-            "start_refinement",
-            "continue_refinement",
-            "get_refinement_status",
-            "get_final_result",
-            "list_refinement_sessions",
-            "abort_refinement",
-            "quick_refine",
-        }
-
+        # TODO: Add tool validation if needed
         # Server should be configured with these tools
         assert server is not None
 

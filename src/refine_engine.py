@@ -79,7 +79,9 @@ class RefineEngine:
         # Generate critiques in parallel for performance
         critique_tasks = [
             self.bedrock.generate_text(
-                critique_prompt, temperature=0.8, model_override=config.critique_model_id
+                critique_prompt,
+                temperature=0.8,
+                model_override=config.critique_model_id,
             )
             for critique_prompt in critique_prompts[: config.parallel_critiques]
         ]
@@ -101,7 +103,7 @@ class RefineEngine:
         """Synthesize critiques into an improved revision."""
         system_prompt = get_domain_system_prompt(domain)
 
-        critique_summary = "\n\n".join([f"Critique {i+1}: {c}" for i, c in enumerate(critiques)])
+        critique_summary = "\n\n".join([f"Critique {i + 1}: {c}" for i, c in enumerate(critiques)])
 
         revision_prompt = f"""Given the original question, current response, and critiques, "
             "create an improved version.

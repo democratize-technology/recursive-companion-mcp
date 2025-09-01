@@ -2,6 +2,7 @@
 """
 Test suite for Recursive Companion MCP Server
 """
+
 import json
 
 # Import components to test

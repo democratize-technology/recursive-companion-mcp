@@ -14,12 +14,12 @@ import pytest
 sys.path.insert(0, "./src")
 from bedrock_client import BedrockClient
 from config import config
+from domains import DomainDetector
 from error_handling import create_ai_error_response
+from incremental_engine import IncrementalRefineEngine
 from validation import SecurityValidator
 
 MAX_PROMPT_LENGTH = config.max_prompt_length
-from domains import DomainDetector
-from incremental_engine import IncrementalRefineEngine
 
 
 class TestBedrockClientExtended:
@@ -177,7 +177,8 @@ class TestMCPServerTools:
         with patch("server.incremental_engine", None):
             # Simulate the tool call
             result_content = json.dumps(
-                {"error": "Incremental engine not initialized", "success": False}, indent=2
+                {"error": "Incremental engine not initialized", "success": False},
+                indent=2,
             )
 
             assert "not initialized" in result_content
@@ -188,7 +189,10 @@ class TestMCPServerTools:
 
         mock_engine = Mock(spec=IncrementalRefineEngine)
         mock_session_manager = Mock()
-        mock_session_manager.list_active_sessions.return_value = ["session1", "session2"]
+        mock_session_manager.list_active_sessions.return_value = [
+            "session1",
+            "session2",
+        ]
         mock_engine.session_manager = mock_session_manager
 
         # Test the error response structure
@@ -276,13 +280,21 @@ class TestQuickRefineIntegration:
 
         # Simulate convergence after 3 iterations
         mock_engine.start_refinement = AsyncMock(
-            return_value={"success": True, "session_id": "quick-123", "status": "initialized"}
+            return_value={
+                "success": True,
+                "session_id": "quick-123",
+                "status": "initialized",
+            }
         )
 
         mock_engine.continue_refinement = AsyncMock(
             side_effect=[
                 {"success": True, "status": "draft_complete", "continue_needed": True},
-                {"success": True, "status": "critique_complete", "continue_needed": True},
+                {
+                    "success": True,
+                    "status": "critique_complete",
+                    "continue_needed": True,
+                },
                 {"success": True, "status": "converged", "continue_needed": False},
             ]
         )

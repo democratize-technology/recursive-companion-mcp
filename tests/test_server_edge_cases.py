@@ -6,6 +6,7 @@ Focuses on defensive programming patterns, error handling, and edge cases.
 MISSING LINES TARGETED: 225, 272-274, 287, 302-304, 316, 331-333, 346,
 366-368, 413, 428, 440, 456-458, 471, 487, 503-504, 583-594
 """
+
 import json
 import sys
 from unittest.mock import AsyncMock, Mock, patch
@@ -325,7 +326,12 @@ class TestQuickRefineEdgeCases:
     ):
         """Test lines 503-504: quick_refine draft preview logging"""
         # Mock time progression for timeout logic
-        mock_time.side_effect = [0, 0.1, 0.2, 50]  # Start, iteration 1, iteration 2, timeout
+        mock_time.side_effect = [
+            0,
+            0.1,
+            0.2,
+            50,
+        ]  # Start, iteration 1, iteration 2, timeout
 
         # Mock successful start
         mock_quick_refine_engine.start_refinement.return_value = {

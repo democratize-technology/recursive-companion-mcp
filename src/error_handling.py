@@ -50,7 +50,12 @@ def create_ai_error_response(error: Exception, context: str) -> dict[str, Any]:
     error_msg = str(error)
 
     # Common error patterns with AI-helpful diagnostics
-    response = {"success": False, "error": error_msg, "error_type": error_type, "context": context}
+    response = {
+        "success": False,
+        "error": error_msg,
+        "error_type": error_type,
+        "context": context,
+    }
 
     # AWS credential errors
     if "credentials" in error_msg.lower() or "aws" in error_msg.lower():

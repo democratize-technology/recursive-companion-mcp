@@ -47,10 +47,16 @@ class SecurityValidator:
             Tuple of (is_valid, validation_message)
         """
         if not prompt or len(prompt.strip()) < config.min_prompt_length:
-            return False, f"Prompt too short (minimum {config.min_prompt_length} characters)"
+            return (
+                False,
+                f"Prompt too short (minimum {config.min_prompt_length} characters)",
+            )
 
         if len(prompt) > config.max_prompt_length:
-            return False, f"Prompt too long (maximum {config.max_prompt_length} characters)"
+            return (
+                False,
+                f"Prompt too long (maximum {config.max_prompt_length} characters)",
+            )
 
         # Check for potential injection patterns
         dangerous_patterns = [

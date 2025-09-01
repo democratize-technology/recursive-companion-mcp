@@ -58,10 +58,10 @@ class TestBedrockClientCompleteCoverage:
         client = BedrockClient()
 
         # Mock the boto3 client creation and test connection
-        with patch("boto3.client") as mock_boto3, patch.object(
-            client, "_test_connection_async", new=AsyncMock()
-        ) as mock_test:
-
+        with (
+            patch("boto3.client") as mock_boto3,
+            patch.object(client, "_test_connection_async", new=AsyncMock()) as mock_test,
+        ):
             mock_boto3.return_value = MagicMock()
 
             # Create multiple concurrent initialization attempts
@@ -88,12 +88,12 @@ class TestBedrockClientCompleteCoverage:
         client = BedrockClient()
         client._max_cache_memory_bytes = 1000  # Small but reasonable limit
 
-        with patch("boto3.client"), patch.object(
-            client, "_test_connection_async", new=AsyncMock()
-        ), patch.object(client, "_get_embedding_uncached_sync") as mock_embedding, patch(
-            "bedrock_client.logger"
-        ) as mock_logger:
-
+        with (
+            patch("boto3.client"),
+            patch.object(client, "_test_connection_async", new=AsyncMock()),
+            patch.object(client, "_get_embedding_uncached_sync") as mock_embedding,
+            patch("bedrock_client.logger") as mock_logger,
+        ):
             # Set up embedding mock to return large embeddings that will trigger eviction
             large_embedding = [0.1] * 200  # 200 * 4 bytes = 800 bytes per embedding
             mock_embedding.return_value = large_embedding
@@ -215,8 +215,10 @@ class TestBedrockClientCompleteCoverage:
         """
         client = BedrockClient()
 
-        with patch("boto3.client"), patch.object(client, "_test_connection_async", new=AsyncMock()):
-
+        with (
+            patch("boto3.client"),
+            patch.object(client, "_test_connection_async", new=AsyncMock()),
+        ):
             # Use async context manager to trigger __aenter__ (lines 355-356)
             async with client as context_client:
                 assert context_client is client
@@ -232,10 +234,11 @@ class TestBedrockClientCompleteCoverage:
         """
         client = BedrockClient()
 
-        with patch("boto3.client"), patch.object(
-            client, "_test_connection_async", new=AsyncMock()
-        ), patch.object(client, "cleanup") as mock_cleanup:
-
+        with (
+            patch("boto3.client"),
+            patch.object(client, "_test_connection_async", new=AsyncMock()),
+            patch.object(client, "cleanup") as mock_cleanup,
+        ):
             # Use async context manager to trigger __aexit__ (lines 360-361)
             async with client:
                 pass
@@ -254,7 +257,7 @@ class TestBedrockClientCompleteCoverage:
         # Create a client that will be garbage collected
         client = BedrockClient()
 
-        with patch.object(client._executor, "shutdown") as mock_shutdown:
+        with patch.object(client._executor, "shutdown"):
             # Trigger destructor by deleting reference and forcing garbage collection
             del client
             gc.collect()
@@ -277,7 +280,9 @@ class TestBedrockClientCompleteCoverage:
 
         # Mock the executor to raise an exception during shutdown
         with patch.object(
-            client._executor, "shutdown", side_effect=RuntimeError("Mock shutdown error")
+            client._executor,
+            "shutdown",
+            side_effect=RuntimeError("Mock shutdown error"),
         ):
             # Manually call __del__ to test exception handling
             try:
@@ -319,8 +324,10 @@ class TestBedrockClientCompleteCoverage:
             # Now try to initialize - should hit the double-check pattern
             await client._ensure_initialized()
 
-        with patch("boto3.client"), patch.object(client, "_test_connection_async", new=AsyncMock()):
-
+        with (
+            patch("boto3.client"),
+            patch.object(client, "_test_connection_async", new=AsyncMock()),
+        ):
             # Start the slow initialization
             slow_task = asyncio.create_task(slow_initialization())
 
@@ -349,10 +356,11 @@ class TestBedrockClientCompleteCoverage:
         # Set a reasonable but small cache limit to trigger eviction
         client._max_cache_memory_bytes = 50000  # 50KB
 
-        with patch("boto3.client"), patch.object(
-            client, "_test_connection_async", new=AsyncMock()
-        ), patch.object(client, "_get_embedding_uncached_sync") as mock_embedding:
-
+        with (
+            patch("boto3.client"),
+            patch.object(client, "_test_connection_async", new=AsyncMock()),
+            patch.object(client, "_get_embedding_uncached_sync") as mock_embedding,
+        ):
             # Create realistic embedding size (like OpenAI ada-002: 1536 dimensions)
             realistic_embedding = [0.1] * 1536
             mock_embedding.return_value = realistic_embedding
@@ -402,10 +410,11 @@ class TestBedrockClientCompleteCoverage:
         """
         client = BedrockClient()
 
-        with patch("boto3.client"), patch.object(
-            client, "_test_connection_async", new=AsyncMock()
-        ), patch("bedrock_client.logger") as mock_logger:
-
+        with (
+            patch("boto3.client"),
+            patch.object(client, "_test_connection_async", new=AsyncMock()),
+            patch("bedrock_client.logger") as mock_logger,
+        ):
             # Initialize client
             await client._ensure_initialized()
 

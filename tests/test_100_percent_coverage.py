@@ -54,7 +54,12 @@ class TestBedrockClientEdgeCases:
             client,
             "_test_connection_sync",
             side_effect=ClientError(
-                {"Error": {"Code": "InvalidCredentials", "Message": "Invalid credentials"}},
+                {
+                    "Error": {
+                        "Code": "InvalidCredentials",
+                        "Message": "Invalid credentials",
+                    }
+                },
                 "ListFoundationModels",
             ),
         ):
@@ -104,7 +109,9 @@ class TestBedrockClientEdgeCases:
 
         # Mock an unexpected exception
         with patch.object(
-            client._generation_breaker, "call", side_effect=RuntimeError("Unexpected error")
+            client._generation_breaker,
+            "call",
+            side_effect=RuntimeError("Unexpected error"),
         ):
             with pytest.raises(RuntimeError, match="Generation failed"):
                 await client.generate_text("test prompt", "test system")

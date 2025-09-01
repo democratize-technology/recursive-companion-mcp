@@ -180,7 +180,11 @@ class CircuitBreaker:
                     self.stats.reset_consecutive_counts()
 
     async def call(
-        self, func: Callable[..., T], *args, fallback: Callable[..., T] | None = None, **kwargs
+        self,
+        func: Callable[..., T],
+        *args,
+        fallback: Callable[..., T] | None = None,
+        **kwargs,
     ) -> T:
         """
         Execute function through circuit breaker.

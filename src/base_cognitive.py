@@ -114,7 +114,9 @@ class CognitiveEnhancer:
     ) -> IterationResult:
         """Add an iteration to the history"""
         iteration = IterationResult(
-            iteration=len(self.iteration_history) + 1, content=content, metadata=metadata or {}
+            iteration=len(self.iteration_history) + 1,
+            content=content,
+            metadata=metadata or {},
         )
         self.iteration_history.append(iteration)
 
@@ -356,7 +358,9 @@ async def iterate_until_convergence(
         Final result with convergence metadata
     """
     config = CognitiveConfig(
-        tool_name=tool_name, max_iterations=max_iterations, convergence_threshold=threshold
+        tool_name=tool_name,
+        max_iterations=max_iterations,
+        convergence_threshold=threshold,
     )
     enhancer = CognitiveEnhancer(config)
 

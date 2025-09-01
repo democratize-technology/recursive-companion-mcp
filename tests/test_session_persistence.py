@@ -506,7 +506,9 @@ class TestSessionPersistenceEdgeCases:
         """Test cleanup_old_sessions with error (lines 294-295)"""
         # Mock list_sessions to raise an exception
         with patch.object(
-            persistence_manager, "list_sessions", side_effect=OSError("Database connection error")
+            persistence_manager,
+            "list_sessions",
+            side_effect=OSError("Database connection error"),
         ):
             # Should not crash, just log error
             await persistence_manager.cleanup_old_sessions()
@@ -529,7 +531,9 @@ class TestSessionPersistenceEdgeCases:
 
         # Mock _write_snapshot_file to raise an exception
         with patch.object(
-            persistence_manager, "_write_snapshot_file", side_effect=OSError("Disk full")
+            persistence_manager,
+            "_write_snapshot_file",
+            side_effect=OSError("Disk full"),
         ):
             success = await persistence_manager.save_snapshot(snapshot)
             assert success is False
@@ -622,7 +626,9 @@ class TestSessionPersistenceEdgeCases:
 
         # First, simulate save error
         with patch.object(
-            persistence_manager, "_write_session_file", side_effect=OSError("Save error")
+            persistence_manager,
+            "_write_session_file",
+            side_effect=OSError("Save error"),
         ):
             save_result = await persistence_manager.save_session(session_data)
             assert save_result is False

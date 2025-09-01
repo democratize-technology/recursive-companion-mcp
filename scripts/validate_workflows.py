@@ -12,7 +12,13 @@ import yaml
 
 def validate_workflow_file(workflow_path: Path) -> dict[str, Any]:
     """Validate a GitHub Actions workflow file."""
-    results = {"file": str(workflow_path), "valid": False, "errors": [], "warnings": [], "info": []}
+    results = {
+        "file": str(workflow_path),
+        "valid": False,
+        "errors": [],
+        "warnings": [],
+        "info": [],
+    }
 
     try:
         with open(workflow_path) as f:
@@ -80,7 +86,13 @@ def validate_workflow_file(workflow_path: Path) -> dict[str, Any]:
 
 def validate_dependabot_config(config_path: Path) -> dict[str, Any]:
     """Validate Dependabot configuration."""
-    results = {"file": str(config_path), "valid": False, "errors": [], "warnings": [], "info": []}
+    results = {
+        "file": str(config_path),
+        "valid": False,
+        "errors": [],
+        "warnings": [],
+        "info": [],
+    }
 
     try:
         with open(config_path) as f:
@@ -122,7 +134,13 @@ def validate_dependabot_config(config_path: Path) -> dict[str, Any]:
 
 def validate_semantic_release_config(config_path: Path) -> dict[str, Any]:
     """Validate semantic release configuration."""
-    results = {"file": str(config_path), "valid": False, "errors": [], "warnings": [], "info": []}
+    results = {
+        "file": str(config_path),
+        "valid": False,
+        "errors": [],
+        "warnings": [],
+        "info": [],
+    }
 
     try:
         with open(config_path) as f:

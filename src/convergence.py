@@ -202,7 +202,11 @@ class ConvergenceDetector:
 
             # Record in history
             self._convergence_history.append(
-                {"score": score, "threshold": threshold, "converged": score >= threshold}
+                {
+                    "score": score,
+                    "threshold": threshold,
+                    "converged": score >= threshold,
+                }
             )
 
             # Log for debugging

@@ -534,7 +534,11 @@ Use chain_of_thought_step to reason through your response systematically. Work t
         )
 
         session.iterations_history.append(
-            {"iteration": 1, "type": "draft", "timestamp": datetime.utcnow().isoformat()}
+            {
+                "iteration": 1,
+                "type": "draft",
+                "timestamp": datetime.utcnow().isoformat(),
+            }
         )
 
         return {
@@ -656,7 +660,9 @@ Provide specific, actionable feedback for improvement."""
         valid_critiques = [c for c in critiques if isinstance(c, str)]
 
         await self.session_manager.update_session(
-            session.session_id, critiques=valid_critiques, status=RefinementStatus.REVISING
+            session.session_id,
+            critiques=valid_critiques,
+            status=RefinementStatus.REVISING,
         )
 
         return {
@@ -707,7 +713,7 @@ Create an improved response that addresses the critiques while maintaining accur
 
             # Prepare critique summary
             critique_summary = "\n\n".join(
-                [f"Critique {i+1}: {critique}" for i, critique in enumerate(session.critiques)]
+                [f"Critique {i + 1}: {critique}" for i, critique in enumerate(session.critiques)]
             )
 
             messages = [
@@ -746,7 +752,7 @@ Use chain_of_thought_step to reason through your improvements systematically. Cr
         else:
             # Fallback to basic synthesis without CoT
             critique_summary = "\n\n".join(
-                [f"Critique {i+1}: {critique}" for i, critique in enumerate(session.critiques)]
+                [f"Critique {i + 1}: {critique}" for i, critique in enumerate(session.critiques)]
             )
 
             revision_prompt = f"""Please create an improved response that addresses these critiques:

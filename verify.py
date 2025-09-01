@@ -2,6 +2,7 @@
 """
 Quick verification script for Recursive Companion MCP
 """
+
 import json
 import subprocess
 import sys

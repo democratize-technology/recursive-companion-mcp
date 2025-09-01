@@ -143,7 +143,9 @@ class TestIncrementalEngineEdgeCases:
         engine = IncrementalRefineEngine(mock_bedrock, mock_detector, mock_validator)
 
         session = await engine.session_manager.create_session(
-            "Test prompt", "technical", {"max_iterations": 3, "convergence_threshold": 0.98}
+            "Test prompt",
+            "technical",
+            {"max_iterations": 3, "convergence_threshold": 0.98},
         )
 
         # Set session to max iterations
@@ -394,7 +396,9 @@ class TestSessionRetrieval:
         # Create various sessions
         active = await engine.session_manager.create_session("Active", "general", {})
         await engine.session_manager.update_session(
-            active.session_id, status=RefinementStatus.DRAFTING, current_draft="Draft in progress"
+            active.session_id,
+            status=RefinementStatus.DRAFTING,
+            current_draft="Draft in progress",
         )
 
         converged = await engine.session_manager.create_session("Converged", "technical", {})
@@ -417,7 +421,9 @@ class TestSessionRetrieval:
 
         error = await engine.session_manager.create_session("Error", "legal", {})
         await engine.session_manager.update_session(
-            error.session_id, status=RefinementStatus.ERROR, error_message="API limit exceeded"
+            error.session_id,
+            status=RefinementStatus.ERROR,
+            error_message="API limit exceeded",
         )
 
         return engine, {

@@ -14,15 +14,15 @@ sys.path.insert(0, "./src")
 from bedrock_client import BedrockClient
 from config import config
 from domains import DomainDetector
-from validation import SecurityValidator
-
-MAX_PROMPT_LENGTH = config.max_prompt_length
 from incremental_engine import (
     IncrementalRefineEngine,
     RefinementSession,
     RefinementStatus,
     SessionManager,
 )
+from validation import SecurityValidator
+
+MAX_PROMPT_LENGTH = config.max_prompt_length
 
 
 class TestSessionManager:
@@ -61,7 +61,9 @@ class TestSessionManager:
         session = await manager.create_session("Test", "general", {})
 
         await manager.update_session(
-            session.session_id, status=RefinementStatus.DRAFTING, current_draft="Draft content"
+            session.session_id,
+            status=RefinementStatus.DRAFTING,
+            current_draft="Draft content",
         )
 
         updated = await manager.get_session(session.session_id)

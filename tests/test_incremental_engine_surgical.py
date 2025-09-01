@@ -141,7 +141,10 @@ class TestIncrementalEngineSurgical:
 
         # Mock COT as available but create request with empty messages
         with patch("incremental_engine.COT_AVAILABLE", True):
-            request = {"messages": [], "system": [{"text": "system prompt"}]}  # Empty messages list
+            request = {
+                "messages": [],
+                "system": [{"text": "system prompt"}],
+            }  # Empty messages list
 
             # This should hit line 311: return "No response generated"
             result = await engine._process_with_cot(None, request)

@@ -73,7 +73,10 @@ class TestCredentialSanitizer:
     def test_sanitize_authorization_headers(self):
         """Test authorization header sanitization"""
         test_cases = [
-            ("Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "Authorization"),
+            (
+                "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+                "Authorization",
+            ),
             ("X-Amz-Security-Token: FQoGZXIvYXdzEBYaD", "X-Amz-Security-Token"),
         ]
 
