@@ -21,6 +21,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "chain-of-thought-tool @ git+https://github.com/democratize-technology/chain-of-thought-tool.git",
     "starlette>=0.47.2",
+    "pip-licenses>=5.0.0",
 ]
 
 [project.optional-dependencies]
