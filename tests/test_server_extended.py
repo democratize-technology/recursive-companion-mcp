@@ -263,7 +263,7 @@ class TestMCPServerTools:
         mock_engine.start_refinement = AsyncMock(
             return_value={"success": True, "session_id": "quick-session"}
         )
-        mock_engine.continue_refinement = AsyncMock(side_effect=asyncio.TimeoutError())
+        mock_engine.continue_refinement = AsyncMock(side_effect=TimeoutError())
 
         # Test timeout handling
         with pytest.raises(asyncio.TimeoutError):

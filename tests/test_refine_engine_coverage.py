@@ -3,7 +3,6 @@ Surgical tests for RefineEngine to achieve 100% coverage.
 Specifically targets missing lines: 132-133, 189-194
 """
 
-import asyncio
 import logging
 import sys
 from unittest.mock import AsyncMock, Mock, patch
@@ -97,7 +96,7 @@ class TestRefineEngineCoverage:
         """Test lines 189-191: asyncio.TimeoutError exception handling"""
         # Mock bedrock to raise AsyncioTimeoutError during draft generation
         refine_engine.bedrock.generate_text = AsyncMock(
-            side_effect=asyncio.TimeoutError("Operation timed out")
+            side_effect=TimeoutError("Operation timed out")
         )
 
         # Call refine and expect TimeoutError to be re-raised
@@ -178,7 +177,7 @@ class TestRefineEngineCoverage:
             mock_config.embedding_model_id = "test-embedding"
             mock_config.critique_model_id = "test-critique"
 
-            refine_engine.bedrock.generate_text = AsyncMock(side_effect=asyncio.TimeoutError())
+            refine_engine.bedrock.generate_text = AsyncMock(side_effect=TimeoutError())
 
             with pytest.raises(TimeoutError) as exc_info:
                 await refine_engine.refine("Test prompt")

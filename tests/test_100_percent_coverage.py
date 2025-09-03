@@ -180,30 +180,34 @@ class TestIncrementalEngineEdgeCases:
     @pytest.mark.asyncio
     async def test_cot_content_extraction_loops(self):
         """Test lines 319-325: content extraction loops in _process_with_cot"""
-        bedrock_client = Mock()
-        engine = IncrementalRefineEngine(bedrock_client, DomainDetector(), SecurityValidator())
+        bedrock_client = AsyncMock()
+        bedrock_client.generate_text.return_value = "fallback response"
 
-        # Mock processor result with nested content structure
-        mock_result = {
-            "output": {
-                "message": {
-                    "content": [
-                        {"text": ""},  # Empty text should be skipped
-                        {"text": "actual response"},  # This should be returned
-                        {"text": "extra text"},  # This should not be reached
-                    ]
+        # Mock COT_AVAILABLE to be True to test the CoT code path
+        with patch("incremental_engine.COT_AVAILABLE", True):
+            engine = IncrementalRefineEngine(bedrock_client, DomainDetector(), SecurityValidator())
+
+            # Mock processor result with nested content structure
+            mock_result = {
+                "output": {
+                    "message": {
+                        "content": [
+                            {"text": ""},  # Empty text should be skipped
+                            {"text": "actual response"},  # This should be returned
+                            {"text": "extra text"},  # This should not be reached
+                        ]
+                    }
                 }
             }
-        }
 
-        # Mock processor
-        processor = Mock()
-        processor.process_tool_loop = AsyncMock(return_value=mock_result)
+            # Mock processor
+            processor = Mock()
+            processor.process_tool_loop = AsyncMock(return_value=mock_result)
 
-        request = {"messages": [{"content": [{"text": "test"}]}]}
+            request = {"messages": [{"content": [{"text": "test"}]}]}
 
-        result = await engine._process_with_cot(processor, request)
-        assert result == "actual response"
+            result = await engine._process_with_cot(processor, request)
+            assert result == "actual response"
 
     @pytest.mark.asyncio
     async def test_critique_cot_fallback(self):

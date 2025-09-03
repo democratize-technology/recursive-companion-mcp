@@ -363,9 +363,9 @@ class SessionPersistenceManager:
         """
         if isinstance(obj, dict):
             return {k: self._make_serializable(v) for k, v in obj.items()}
-        elif isinstance(obj, (list, tuple)):
+        elif isinstance(obj, list | tuple):
             return [self._make_serializable(item) for item in obj]
-        elif isinstance(obj, (str, int, float, bool, type(None))):
+        elif isinstance(obj, str | int | float | bool | type(None)):
             return obj
         else:
             # Convert other types to string

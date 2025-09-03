@@ -117,7 +117,7 @@ class TestCircuitBreakerStates:
             raise Exception("Intermittent failure")
 
         # Alternating success and failure
-        for i in range(6):
+        for _i in range(6):
             try:
                 await breaker.call(intermittent_func)
             except Exception:

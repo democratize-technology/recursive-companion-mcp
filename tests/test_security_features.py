@@ -21,9 +21,9 @@ class TestCredentialSanitizer:
             ),
         ]
 
-        for input_text, expected_pattern in test_cases:
+        for input_text, _expected_pattern in test_cases:
             result = CredentialSanitizer.sanitize_string(input_text)
-            assert expected_pattern in result
+            assert _expected_pattern in result
             assert "AKIA" not in result
             assert "ASIA" not in result
 
@@ -40,7 +40,7 @@ class TestCredentialSanitizer:
             ),
         ]
 
-        for input_text, expected_pattern in test_cases:
+        for input_text, _expected_pattern in test_cases:
             result = CredentialSanitizer.sanitize_string(input_text)
             assert "REDACTED" in result
             assert "wJalrXUtnFEMI" not in result
@@ -80,7 +80,7 @@ class TestCredentialSanitizer:
             ("X-Amz-Security-Token: FQoGZXIvYXdzEBYaD", "X-Amz-Security-Token"),
         ]
 
-        for input_text, header_name in test_cases:
+        for input_text, _header_name in test_cases:
             result = CredentialSanitizer.sanitize_string(input_text)
             assert "REDACTED" in result
             assert "eyJhbG" not in result

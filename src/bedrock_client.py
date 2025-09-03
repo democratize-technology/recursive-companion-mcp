@@ -111,7 +111,7 @@ class BedrockClient:
                 error_msg = sanitized_error.get("error_message", "Unknown error")
                 logger.error(f"Failed to initialize AWS Bedrock client: {error_msg}")
                 # Don't include original exception to prevent credential leakage
-                raise ValueError(f"AWS Bedrock initialization failed: {error_msg}")
+                raise ValueError(f"AWS Bedrock initialization failed: {error_msg}") from None
 
     async def _test_connection_async(self):
         """Test AWS Bedrock connection asynchronously."""
@@ -200,7 +200,7 @@ class BedrockClient:
         except json.JSONDecodeError as e:
             sanitized_msg = CredentialSanitizer.sanitize_error(e)
             logger.error(f"Invalid JSON response from Bedrock: {sanitized_msg}")
-            raise ValueError("Invalid response format from Bedrock model")
+            raise ValueError("Invalid response format from Bedrock model") from None
 
         except Exception as e:
             # Sanitize any potential credentials in error messages
@@ -209,7 +209,7 @@ class BedrockClient:
             # Re-raise with sanitized message to prevent credential leakage
             raise RuntimeError(
                 f"Generation failed: {sanitized_error.get('error_message', 'Unknown error')}"
-            )
+            ) from None
 
     def _get_embedding_uncached_sync(self, text: str) -> list[float]:
         """Synchronous embedding generation for executor."""
@@ -249,7 +249,7 @@ class BedrockClient:
         except json.JSONDecodeError as e:
             sanitized_msg = CredentialSanitizer.sanitize_error(e)
             logger.error(f"Invalid JSON response from Bedrock: {sanitized_msg}")
-            raise ValueError("Invalid response format from Bedrock embedding model")
+            raise ValueError("Invalid response format from Bedrock embedding model") from None
 
         except Exception as e:
             # Sanitize error to prevent credential leakage
@@ -257,7 +257,7 @@ class BedrockClient:
             logger.error(f"Embedding generation error: {sanitized_error}")
             raise RuntimeError(
                 f"Embedding failed: {sanitized_error.get('error_message', 'Unknown error')}"
-            )
+            ) from None
 
     async def get_embedding(self, text: str) -> list[float]:
         """

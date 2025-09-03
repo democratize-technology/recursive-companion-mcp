@@ -188,9 +188,9 @@ Create an improved response that addresses these critiques while maintaining "
 
                 previous_embedding = current_embedding
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error("Refinement timeout exceeded")
-            raise TimeoutError(f"Refinement exceeded {config.request_timeout} seconds")
+            raise TimeoutError(f"Refinement exceeded {config.request_timeout} seconds") from None
         except Exception as e:
             logger.error(f"Refinement error: {e}")
             raise

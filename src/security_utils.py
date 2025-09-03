@@ -104,9 +104,9 @@ class CredentialSanitizer:
             else:
                 # Replace captured groups
                 sanitized = pattern.sub(
-                    lambda m: m.group(0).replace(
+                    lambda m, name=pattern_name: m.group(0).replace(
                         m.group(1) if m.lastindex else m.group(0),
-                        f"[REDACTED_{pattern_name.upper()}]",
+                        f"[REDACTED_{name.upper()}]",
                     ),
                     sanitized,
                 )
@@ -206,7 +206,7 @@ class CredentialSanitizer:
 
         # Also check for sensitive data in exception attributes
         if hasattr(error, "__dict__"):
-            for attr, value in error.__dict__.items():
+            for _attr, value in error.__dict__.items():
                 if isinstance(value, str):
                     value_sanitized = cls.sanitize_string(value)
                     if value != value_sanitized:

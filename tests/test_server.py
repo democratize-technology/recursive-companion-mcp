@@ -244,7 +244,7 @@ class TestBedrockClient:
             mock_boto.return_value.list_foundation_models.return_value = {"models": []}
 
             client = BedrockClient()
-            client._executor
+            assert client._executor is not None
 
             # Trigger cleanup
             del client
