@@ -36,6 +36,7 @@ from enum import Enum
 from typing import Any
 
 from convergence import ConvergenceDetector
+from cot_enhancement import create_cot_enhancer
 from domains import get_domain_system_prompt
 from session_persistence import persistence_manager
 
@@ -274,6 +275,9 @@ class IncrementalRefineEngine:
         self.session_manager = SessionManager()
         self.convergence_detector = ConvergenceDetector()
 
+        # Initialize CoT enhancer for prompt improvement
+        self.cot_enhancer = create_cot_enhancer(enabled=True)
+
         # Initialize Chain of Thought availability check
         if not COT_AVAILABLE:
             logger.warning(
@@ -285,6 +289,14 @@ class IncrementalRefineEngine:
         )
         if COT_AVAILABLE:
             logger.info("Chain of Thought will enhance draft, critique, and synthesis steps")
+
+        # Log enhancer initialization
+        if self.cot_enhancer.cot_available:
+            logger.info(
+                "CoT enhancer initialized - prompts will include structured thinking patterns"
+            )
+        else:
+            logger.info("CoT enhancer using fallback mode - basic structured prompts only")
 
     def get_cot_tools(self) -> list[dict[str, Any]]:
         """Get Chain of Thought tool specifications for Bedrock."""
@@ -472,6 +484,11 @@ class IncrementalRefineEngine:
         """Generate initial draft with CoT enhancement"""
         system_prompt = self._get_domain_system_prompt(session.domain)
 
+        # Enhance the initial prompt using the CoT enhancer
+        enhanced_user_prompt = self.cot_enhancer.enhance_initial_refinement_prompt(
+            session.prompt, session.domain
+        )
+
         # Create CoT processor for this draft step
         if COT_AVAILABLE:
             processor = AsyncChainOfThoughtProcessor(conversation_id=f"draft-{session.session_id}")
@@ -489,19 +506,11 @@ You have access to Chain of Thought tools to structure your reasoning:
 
 Provide a comprehensive, well-structured response to the user's request."""
 
-            # Prepare messages for draft generation
+            # Prepare messages for draft generation with enhanced prompt
             messages = [
                 {
                     "role": "user",
-                    "content": [
-                        {
-                            "text": f"""Please provide a comprehensive response to this request:
-
-{session.prompt}
-
-Use chain_of_thought_step to reason through your response systematically. Work through the problem step by step before providing your final answer."""
-                        }
-                    ],
+                    "content": [{"text": enhanced_user_prompt}],
                 }
             ]
 
@@ -518,8 +527,8 @@ Use chain_of_thought_step to reason through your response systematically. Work t
 
             draft = await self._process_with_cot(processor, request)
         else:
-            # Fallback to basic generation without CoT
-            draft = await self.bedrock.generate_text(session.prompt, system_prompt)
+            # Fallback to basic generation without CoT tools, but still use enhanced prompt
+            draft = await self.bedrock.generate_text(enhanced_user_prompt, system_prompt)
 
         # Log CoT enhancement details
         logger.info(f"Generating draft with CoT enhancement (available: {COT_AVAILABLE})")
@@ -692,6 +701,19 @@ Provide specific, actionable feedback for improvement."""
         """Synthesize revision with CoT enhancement and check convergence"""
         system_prompt = self._get_domain_system_prompt(session.domain)
 
+        # Prepare iteration data for CoT enhancement
+        iteration_data = {
+            "current_draft": session.current_draft,
+            "previous_draft": session.previous_draft,
+            "critiques": session.critiques,
+            "convergence_score": session.convergence_score,
+            "iteration_number": session.current_iteration,
+            "domain_type": session.domain,
+        }
+
+        # Enhance the revision prompt using the CoT enhancer
+        enhanced_user_prompt = self.cot_enhancer.enhance_iteration_prompt(iteration_data)
+
         # Create CoT processor for synthesis step
         if COT_AVAILABLE:
             processor = AsyncChainOfThoughtProcessor(
@@ -711,29 +733,10 @@ You have access to Chain of Thought tools to structure your synthesis:
 
 Create an improved response that addresses the critiques while maintaining accuracy and clarity."""
 
-            # Prepare critique summary
-            critique_summary = "\n\n".join(
-                [f"Critique {i + 1}: {critique}" for i, critique in enumerate(session.critiques)]
-            )
-
             messages = [
                 {
                     "role": "user",
-                    "content": [
-                        {
-                            "text": f"""Please create an improved response that addresses these critiques:
-
-Original Question: {session.prompt}
-
-Current Response:
-{session.current_draft}
-
-Critiques to Address:
-{critique_summary}
-
-Use chain_of_thought_step to reason through your improvements systematically. Create a revised response that addresses the critiques while maintaining accuracy and clarity."""
-                        }
-                    ],
+                    "content": [{"text": enhanced_user_prompt}],
                 }
             ]
 
@@ -750,25 +753,9 @@ Use chain_of_thought_step to reason through your improvements systematically. Cr
 
             revision = await self._process_with_cot(processor, request)
         else:
-            # Fallback to basic synthesis without CoT
-            critique_summary = "\n\n".join(
-                [f"Critique {i + 1}: {critique}" for i, critique in enumerate(session.critiques)]
-            )
-
-            revision_prompt = f"""Please create an improved response that addresses these critiques:
-
-Original Question: {session.prompt}
-
-Current Response:
-{session.current_draft}
-
-Critiques to Address:
-{critique_summary}
-
-Create a revised response that addresses the critiques while maintaining accuracy and clarity."""
-
+            # Fallback to basic synthesis without CoT tools, but still use enhanced prompt
             revision = await self.bedrock.generate_text(
-                revision_prompt, system_prompt, temperature=0.6
+                enhanced_user_prompt, system_prompt, temperature=0.6
             )
 
         # Log CoT enhancement for synthesis
@@ -804,7 +791,22 @@ Create a revised response that addresses the critiques while maintaining accurac
             }
         )
 
-        # Check if converged
+        # Enhanced convergence decision with CoT reasoning
+        # Use CoT enhancer to provide structured convergence decision-making
+        convergence_decision_prompt = self.cot_enhancer.enhance_convergence_decision_prompt(
+            current=revision,
+            previous=session.current_draft,
+            similarity_score=convergence_score,
+            threshold=session.convergence_threshold,
+            iteration_count=session.current_iteration,
+        )
+
+        # Log the enhanced convergence reasoning (for debugging/transparency)
+        logger.debug(
+            f"Convergence decision enhanced with CoT reasoning for session {session.session_id}"
+        )
+
+        # Check if converged (maintain existing logic as fallback)
         if convergence_score >= session.convergence_threshold:
             await self.session_manager.update_session(
                 session.session_id, status=RefinementStatus.CONVERGED
