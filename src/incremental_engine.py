@@ -38,14 +38,12 @@ from typing import Any
 from convergence import ConvergenceDetector
 from cot_enhancement import create_cot_enhancer
 from domains import get_domain_system_prompt
+
+# Use internal chain-of-thought implementation for security
+from internal_cot import TOOL_SPECS, AsyncChainOfThoughtProcessor
 from session_persistence import persistence_manager
 
-try:
-    from chain_of_thought import TOOL_SPECS, AsyncChainOfThoughtProcessor
-
-    COT_AVAILABLE = True
-except ImportError:
-    COT_AVAILABLE = False
+COT_AVAILABLE = True
 
 logger = logging.getLogger(__name__)
 

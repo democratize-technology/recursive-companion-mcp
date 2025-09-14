@@ -21,15 +21,17 @@ class ChainOfThoughtEnhancer:
         """
         self.enabled = enabled
 
-        # Import chain-of-thought tools if available
+        # Use internal chain-of-thought implementation for security
         try:
-            import chain_of_thought  # noqa: F401
+            import internal_cot  # noqa: F401
 
             self.cot_available = True
-            logger.info("Chain of Thought tools loaded successfully for refinement enhancement")
+            logger.info(
+                "Internal Chain of Thought tools loaded successfully for refinement enhancement"
+            )
         except ImportError as e:
             self.cot_available = False
-            logger.warning(f"Chain of Thought tools not available for enhancement: {e}")
+            logger.warning(f"Internal Chain of Thought tools not available for enhancement: {e}")
 
     def enhance_initial_refinement_prompt(self, content: str, domain_type: str) -> str:
         """Enhance initial refinement prompt with structured thinking.
