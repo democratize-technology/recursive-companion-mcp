@@ -365,5 +365,8 @@ class BedrockClient:
         try:
             if hasattr(self, "_executor") and self._executor:
                 self._executor.shutdown(wait=False)
-        except Exception:
-            pass  # Best effort cleanup
+        except Exception as e:
+            # Log cleanup errors but don't raise in destructor
+            # This preserves the "best effort" behavior while maintaining observability
+            logger.warning(f"Error during destructor cleanup: {e}")
+            # Continue with cleanup attempt despite errors
