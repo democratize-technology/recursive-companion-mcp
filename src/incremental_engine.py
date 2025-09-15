@@ -30,80 +30,24 @@ Implements incremental refinement to avoid timeouts and show progress
 import asyncio
 import logging
 import uuid
-from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 from typing import Any
 
+from configuration_manager import ConfigurationManager
 from convergence import ConvergenceDetector
 from cot_enhancement import create_cot_enhancer
-from domains import get_domain_system_prompt
 
 # Use internal chain-of-thought implementation for security
 from internal_cot import TOOL_SPECS, AsyncChainOfThoughtProcessor
+
+# Extracted utility modules
+from progress_tracker import ProgressTracker
+from refinement_types import RefinementSession, RefinementStatus
 from session_persistence import persistence_manager
 
 COT_AVAILABLE = True
 
 logger = logging.getLogger(__name__)
-
-
-class RefinementStatus(Enum):
-    """Status of a refinement session"""
-
-    INITIALIZING = "initializing"
-    DRAFTING = "drafting"
-    CRITIQUING = "critiquing"
-    REVISING = "revising"
-    CONVERGED = "converged"
-    ERROR = "error"
-    TIMEOUT = "timeout"
-    ABORTED = "aborted"
-
-
-@dataclass
-class RefinementSession:
-    """Represents an active refinement session"""
-
-    session_id: str
-    prompt: str
-    domain: str
-    status: RefinementStatus
-    current_iteration: int
-    max_iterations: int
-    convergence_threshold: float
-    current_draft: str = ""
-    previous_draft: str = ""
-    critiques: list = field(default_factory=list)
-    convergence_score: float = 0.0
-    iterations_history: list = field(default_factory=list)
-    created_at: datetime = field(default_factory=datetime.utcnow)
-    updated_at: datetime = field(default_factory=datetime.utcnow)
-    error_message: str | None = None
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert session to dictionary for JSON serialization"""
-        return {
-            "session_id": self.session_id,
-            "prompt": self.prompt,
-            "domain": self.domain,
-            "status": self.status.value,
-            "current_iteration": self.current_iteration,
-            "max_iterations": self.max_iterations,
-            "convergence_threshold": self.convergence_threshold,
-            "convergence_score": round(self.convergence_score, 4),
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-            "error_message": self.error_message,
-            "metadata": self.metadata,
-            "draft_preview": (
-                self.current_draft[:200] + "..."
-                if len(self.current_draft) > 200
-                else self.current_draft
-            ),
-            "iterations_completed": len(self.iterations_history),
-        }
 
 
 class SessionManager:
@@ -272,6 +216,9 @@ class IncrementalRefineEngine:
         self.validator = validator
         self.session_manager = SessionManager()
         self.convergence_detector = ConvergenceDetector()
+
+        # Initialize CoT processor placeholder
+        self.cot_processor = None
 
         # Initialize CoT enhancer for prompt improvement
         self.cot_enhancer = create_cot_enhancer(enabled=True)
@@ -488,7 +435,7 @@ class IncrementalRefineEngine:
         )
 
         # Create CoT processor for this draft step
-        if COT_AVAILABLE:
+        if COT_AVAILABLE and self.cot_processor is not None:
             processor = AsyncChainOfThoughtProcessor(conversation_id=f"draft-{session.session_id}")
 
             # Enhance system prompt with CoT instructions
@@ -591,7 +538,7 @@ Provide a comprehensive, well-structured response to the user's request."""
         critique_tasks = []
 
         for i, (focus, base_prompt) in enumerate(critique_types):
-            if COT_AVAILABLE:
+            if COT_AVAILABLE and self.cot_processor is not None:
                 processor = AsyncChainOfThoughtProcessor(
                     conversation_id=f"critique-{session.session_id}-{i}"
                 )
@@ -713,7 +660,7 @@ Provide specific, actionable feedback for improvement."""
         enhanced_user_prompt = self.cot_enhancer.enhance_iteration_prompt(iteration_data)
 
         # Create CoT processor for synthesis step
-        if COT_AVAILABLE:
+        if COT_AVAILABLE and self.cot_processor is not None:
             processor = AsyncChainOfThoughtProcessor(
                 conversation_id=f"revise-{session.session_id}-{session.current_iteration}"
             )
@@ -791,7 +738,7 @@ Create an improved response that addresses the critiques while maintaining accur
 
         # Enhanced convergence decision with CoT reasoning
         # Use CoT enhancer to provide structured convergence decision-making
-        convergence_decision_prompt = self.cot_enhancer.enhance_convergence_decision_prompt(
+        enhanced_prompt = self.cot_enhancer.enhance_convergence_decision_prompt(
             current=revision,
             previous=session.current_draft,
             similarity_score=convergence_score,
@@ -801,7 +748,7 @@ Create an improved response that addresses the critiques while maintaining accur
 
         # Log the enhanced convergence reasoning (for debugging/transparency)
         logger.debug(
-            f"Convergence decision enhanced with CoT reasoning for session {session.session_id}"
+            f"Convergence decision enhanced with CoT reasoning for session {session.session_id}: {enhanced_prompt[:100]}..."
         )
 
         # Check if converged (maintain existing logic as fallback)
@@ -1006,60 +953,20 @@ Create an improved response that addresses the critiques while maintaining accur
 
     def _format_progress(self, session: RefinementSession) -> dict[str, Any]:
         """Create detailed progress information"""
-        # Estimate steps: draft(1) + (critique(1) + revise(1)) * iterations
-        estimated_total_steps = 1 + (2 * session.max_iterations)
-        current_step = 1 + (2 * session.current_iteration)
-
-        if session.status == RefinementStatus.DRAFTING:
-            current_step = 1
-        elif session.status == RefinementStatus.CRITIQUING:
-            current_step = 2 + (2 * (session.current_iteration - 1))
-        elif session.status == RefinementStatus.REVISING:
-            current_step = 3 + (2 * (session.current_iteration - 1))
-
-        return {
-            "step": f"{current_step}/{estimated_total_steps}",
-            "percent": round((current_step / estimated_total_steps) * 100),
-            "current_action": self._get_action_description(session.status),
-            "iteration": f"{session.current_iteration}/{session.max_iterations}",
-            "convergence": f"{session.convergence_score:.1%}",
-            "status_emoji": self._get_status_emoji(session.status),
-        }
+        return ProgressTracker.format_progress(session)
 
     def _get_action_description(self, status: RefinementStatus) -> str:
         """Human-friendly action descriptions"""
-        descriptions = {
-            RefinementStatus.INITIALIZING: "Starting refinement process",
-            RefinementStatus.DRAFTING: "Creating initial draft",
-            RefinementStatus.CRITIQUING: "Analyzing draft for improvements",
-            RefinementStatus.REVISING: "Incorporating feedback",
-            RefinementStatus.CONVERGED: "Refinement complete - convergence achieved",
-            RefinementStatus.ABORTED: "Refinement aborted by user",
-            RefinementStatus.TIMEOUT: "Maximum iterations reached",
-            RefinementStatus.ERROR: "Error occurred during refinement",
-        }
-        return descriptions.get(status, "Processing")
+        return ProgressTracker.get_action_description(status)
 
     def _get_status_emoji(self, status: RefinementStatus) -> str:
         """Fun status indicators"""
-        emojis = {
-            RefinementStatus.INITIALIZING: "🚀",
-            RefinementStatus.DRAFTING: "📝",
-            RefinementStatus.CRITIQUING: "🔍",
-            RefinementStatus.REVISING: "✏️",
-            RefinementStatus.CONVERGED: "✅",
-            RefinementStatus.ERROR: "❌",
-            RefinementStatus.ABORTED: "🛑",
-            RefinementStatus.TIMEOUT: "⏱️",
-        }
-        return emojis.get(status, "⏳")
+        return ProgressTracker.get_status_emoji(status)
 
     def _get_model_name(self) -> str:
         """Get current model name for performance hints"""
-        import os
-
-        return os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-sonnet-20240229-v1:0")
+        return ConfigurationManager.get_model_name()
 
     def _get_domain_system_prompt(self, domain: str) -> str:
         """Get domain-specific system prompt"""
-        return get_domain_system_prompt(domain)
+        return ConfigurationManager.get_domain_system_prompt(domain)

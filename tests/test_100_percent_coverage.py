@@ -214,6 +214,9 @@ class TestIncrementalEngineEdgeCases:
         """Test lines 632-641: fallback critique without CoT"""
         bedrock_client = Mock()
         bedrock_client.generate_text = AsyncMock(return_value="fallback critique")
+        bedrock_client.converse = AsyncMock(
+            return_value={"output": {"message": {"content": [{"text": "fallback critique"}]}}}
+        )
 
         engine = IncrementalRefineEngine(bedrock_client, DomainDetector(), SecurityValidator())
 
