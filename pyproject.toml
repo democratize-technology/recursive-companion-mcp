@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "recursive-companion-mcp"
@@ -13,31 +13,52 @@ authors = [
     {name = "Recursive Companion Contributors", email = "contact@thinkerz.ai"},
 ]
 dependencies = [
-    "mcp>=0.1.0",
-    "boto3>=1.28.0",
-    "numpy>=1.24.0",
-    "scipy>=1.10.0",
-    "pydantic>=2.0.0",
-    "python-dotenv>=1.0.0",
-    "starlette>=0.47.2",
+    # CRITICAL SECURITY UPDATE: fastmcp >= 2.12.0 to fix CVE-2025-53366 (DoS vulnerability)
+    "fastmcp>=2.12.0,<3.0.0",
+    "pydantic>=2.11.0,<3.0.0",
+    "boto3>=1.39.0,<2.0.0",
+    # CRITICAL SECURITY UPDATE: litellm >= 1.76.0 to fix SQL injection and API key leakage CVEs
+    "litellm>=1.76.0,<1.76.1",
+    "httpx>=0.27.0,<1.0.0",
+    "numpy>=1.26.0,<2.0.0",
+    "scipy>=1.13.0,<2.0.0",
+    "python-dotenv>=1.0.0,<3.0.0",
+    # CRITICAL SECURITY UPDATE: cryptography >= 45.0.6 (latest available with security fixes)
+    "cryptography>=45.0.6,<46.0.0",
+    "aiohttp>=3.12.0,<4.0.0",
+    # Security constraint: Use latest available jinja2 >= 3.1.6 (latest available with security fixes)
+    "jinja2>=3.1.6,<4.0.0",
+    # Security constraint: Use latest available tqdm >= 4.67.1 for security updates
+    "tqdm>=4.67.1",
+    # Security constraint: Use latest available requests >= 2.32.5 for security patches
+    "requests>=2.32.5",
+    # Security constraint: Use latest available starlette >= 0.47.3 for security updates
+    "starlette>=0.47.3",
+    # Security constraint: Use latest available idna >= 3.10 for security patches
+    "idna>=3.10",
     "pip-licenses>=5.0.0",
+    "chain-of-thought-tool==0.1.1",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.0.0",
+    "pytest>=8.0.0,<9.0.0",
+    "pytest-asyncio>=0.24.0,<1.0.0",
+    "pytest-cov>=5.0.0,<7.0.0",
     "moto>=4.0.0",
-    "flake8>=6.0.0",
-    "black>=24.3.0",
-    "mypy>=1.0.0",
+    "ruff>=0.5.0,<1.0.0",
+    # Security constraint: Ensure black >= 24.3.0 to prevent GHSA-r7qg-x4xf-62j6 (ReDoS via malformed input)
+    "black>=24.3.0,<25.0.0",
+    "mypy>=1.10.0,<2.0.0",
     "safety>=3.0.0",
     "bandit[toml]>=1.7.0",
     "pip-audit>=2.6.0",
     "isort>=5.12.0",
     "autoflake>=2.0.0",
     "pre-commit>=3.0.0",
+    # Security constraint: Ensure virtualenv >= 20.26.6 to prevent PYSEC-2024-187 (command injection)
+    "virtualenv>=20.26.6",
+    "toml>=0.10.2",  # For version management scripts
 ]
 release = [
     "python-semantic-release>=8.0.0",
@@ -46,8 +67,8 @@ release = [
 ]
 
 [tool.black]
-line-length = 100
-target-version = ['py38']
+line-length = 120
+target-version = ['py39', 'py310', 'py311', 'py312']
 
 [tool.flake8]
 max-line-length = 100
@@ -78,8 +99,23 @@ ensure_newline_before_comments = true
 skip = [".venv", "venv", "__pycache__", ".git"]
 
 [tool.pytest.ini_options]
+minversion = "7.0"
 testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
 asyncio_mode = "auto"
+addopts = [
+    "--strict-markers",
+    "--tb=short",
+    "--disable-warnings",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "asyncio: marks tests as async",
+]
 
 [tool.mypy]
 python_version = "3.10"
@@ -127,6 +163,52 @@ version_toml = [
 ]
 build_command = "uv build"
 upload_to_vcs_release = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "C90",  # mccabe complexity
+    "N",    # pep8-naming
+    "B",    # flake8-bugbear
+    "S",    # flake8-bandit security
+    "A",    # flake8-builtins
+    "C4",   # flake8-comprehensions
+    "T10",  # flake8-debugger
+    "ISC",  # flake8-implicit-str-concat
+    "RET",  # flake8-return
+    "SIM",  # flake8-simplify
+    "TID",  # flake8-tidy-imports
+    "PTH",  # flake8-use-pathlib
+    "ERA",  # eradicate
+    "PL",   # pylint
+    "RUF",  # ruff-specific rules
+]
+ignore = [
+    "S101",  # Use of assert (needed for tests)
+    "S603",  # subprocess without shell=True
+    "B008",  # Do not perform function calls in argument defaults
+    "C901",  # Function is too complex
+    "PLR0913", # Too many arguments
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106", "S110", "S311", "PLR2004", "E722", "F821", "PTH118", "PTH120", "PTH123"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/recursive_companion_mcp"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [dependency-groups]
 dev = [
