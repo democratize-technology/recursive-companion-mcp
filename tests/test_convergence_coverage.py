@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from recursive_companion_mcp.legacy.convergence import EmbeddingService, basic_text_convergence
+from recursive_companion_mcp.core.convergence import EmbeddingService, basic_text_convergence
 
 # sys.path removed - using package imports
 
@@ -18,7 +18,7 @@ class TestConvergenceCoverage:
     @pytest.fixture
     def embedding_service(self):
         """Create test embedding service"""
-        from convergence import ConvergenceConfig
+        from recursive_companion_mcp.core.convergence import ConvergenceConfig
 
         return EmbeddingService(ConvergenceConfig())
 
@@ -32,7 +32,7 @@ class TestConvergenceCoverage:
         assert embedding_service._initialized is True
 
         # Mock the boto3.client to track if it's called again
-        with patch("convergence.boto3.client") as mock_client:
+        with patch("recursive_companion_mcp.core.convergence.boto3.client") as mock_client:
             # Second call should hit line 74 and return early
             await embedding_service._ensure_initialized()
 
@@ -99,7 +99,7 @@ class TestConvergenceCoverage:
     @pytest.mark.asyncio
     async def test_initialization_with_different_embedding_services(self):
         """Test that each embedding service instance initializes independently"""
-        from convergence import ConvergenceConfig
+        from recursive_companion_mcp.core.convergence import ConvergenceConfig
 
         service1 = EmbeddingService(ConvergenceConfig())
         service2 = EmbeddingService(ConvergenceConfig())

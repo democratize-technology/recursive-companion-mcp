@@ -6,16 +6,16 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from recursive_companion_mcp.legacy.bedrock_client import BedrockClient
-from recursive_companion_mcp.legacy.config import config
-from recursive_companion_mcp.legacy.error_handling import create_ai_error_response
-from recursive_companion_mcp.legacy.refine_engine import RefineEngine
-from recursive_companion_mcp.legacy.session_manager import (
+from recursive_companion_mcp.clients.bedrock import BedrockClient
+from recursive_companion_mcp.config import config
+from recursive_companion_mcp.core.errors import create_ai_error_response
+from recursive_companion_mcp.core.session_manager import (
     RefinementIteration,
     RefinementResult,
     SessionTracker,
 )
-from recursive_companion_mcp.legacy.validation import SecurityValidator
+from recursive_companion_mcp.core.validation import SecurityValidator
+from recursive_companion_mcp.engines.refine import RefineEngine
 
 # sys.path removed - using package imports
 
@@ -49,7 +49,7 @@ class TestBedrockClientUnit:
 
     def test_sanitize_error_message(self):
         """Test error message sanitization"""
-        from security_utils import CredentialSanitizer
+        from recursive_companion_mcp.core.security import CredentialSanitizer
 
         # Test access key redaction
         msg = "Error with AKIAIOSFODNN7EXAMPLE key"
@@ -65,7 +65,7 @@ class TestBedrockClientUnit:
 
     def test_cosine_similarity_edge_cases(self):
         """Test cosine similarity with edge cases"""
-        from convergence import ConvergenceDetector
+        from recursive_companion_mcp.core.convergence import ConvergenceDetector
 
         detector = ConvergenceDetector()
 

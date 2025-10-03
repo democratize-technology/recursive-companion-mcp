@@ -7,13 +7,13 @@ from unittest.mock import Mock
 import pytest
 
 # sys.path removed - using package imports
-from recursive_companion_mcp.legacy.domains import DomainDetector
-from recursive_companion_mcp.legacy.incremental_engine import (
+from recursive_companion_mcp.core.domains import DomainDetector
+from recursive_companion_mcp.core.validation import SecurityValidator
+from recursive_companion_mcp.engines.incremental import (
     IncrementalRefineEngine,
     RefinementSession,
     RefinementStatus,
 )
-from recursive_companion_mcp.legacy.validation import SecurityValidator
 
 
 class TestAbortRefinementComplete:

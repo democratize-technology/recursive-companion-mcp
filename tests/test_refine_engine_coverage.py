@@ -8,11 +8,11 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from recursive_companion_mcp.legacy.bedrock_client import BedrockClient
-from recursive_companion_mcp.legacy.convergence import ConvergenceDetector
-from recursive_companion_mcp.legacy.domains import DomainDetector
-from recursive_companion_mcp.legacy.refine_engine import RefineEngine
-from recursive_companion_mcp.legacy.validation import SecurityValidator
+from recursive_companion_mcp.clients.bedrock import BedrockClient
+from recursive_companion_mcp.core.convergence import ConvergenceDetector
+from recursive_companion_mcp.core.domains import DomainDetector
+from recursive_companion_mcp.core.validation import SecurityValidator
+from recursive_companion_mcp.engines.refine import RefineEngine
 
 # sys.path removed - using package imports
 
@@ -167,7 +167,7 @@ class TestRefineEngineCoverage:
     async def test_timeout_error_with_config_message(self, refine_engine):
         """Test that timeout error includes config timeout value"""
         # Mock config to have a specific timeout value
-        with patch("refine_engine.config") as mock_config:
+        with patch("recursive_companion_mcp.engines.refine.config") as mock_config:
             mock_config.request_timeout = 30
             mock_config.max_iterations = 5
             mock_config.convergence_threshold = 0.98

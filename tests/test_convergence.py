@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from recursive_companion_mcp.legacy.convergence import (
+from recursive_companion_mcp.core.convergence import (
     ConvergenceConfig,
     ConvergenceDetector,
     EmbeddingService,
@@ -148,7 +148,7 @@ class TestEmbeddingService:
         expected_embedding = [0.1, 0.2, 0.3]
         service._embedding_cache[text_hash] = expected_embedding
 
-        with patch("convergence.logger") as mock_logger:
+        with patch("recursive_companion_mcp.core.convergence.logger") as mock_logger:
             embedding = await service.get_embedding(text)
 
             assert embedding == expected_embedding
@@ -222,7 +222,7 @@ class TestEmbeddingService:
             mock_runtime.invoke_model.side_effect = Exception("API error")
             service.bedrock_runtime = mock_runtime
 
-            with patch("convergence.logger") as mock_logger:
+            with patch("recursive_companion_mcp.core.convergence.logger") as mock_logger:
                 with pytest.raises(Exception, match="API error"):
                     await service.get_embedding("test text")
 
@@ -391,7 +391,7 @@ class TestConvergenceDetector:
         mock_service.get_embedding.side_effect = [current_embedding, previous_embedding]
         detector.embedding_service = mock_service
 
-        with patch("convergence.logger") as mock_logger:
+        with patch("recursive_companion_mcp.core.convergence.logger") as mock_logger:
             converged, score = await detector.is_converged("current", "previous", threshold=0.5)
 
             assert isinstance(converged, bool)
@@ -415,7 +415,7 @@ class TestConvergenceDetector:
         mock_service.get_embedding.side_effect = Exception("Embedding failed")
         detector.embedding_service = mock_service
 
-        with patch("convergence.logger") as mock_logger:
+        with patch("recursive_companion_mcp.core.convergence.logger") as mock_logger:
             converged, score = await detector.is_converged("current", "previous")
 
             assert converged is False
@@ -509,7 +509,7 @@ class TestToolSpecificDetectors:
         }
 
         for tool_name, expected_threshold in tools_and_thresholds.items():
-            with patch("convergence.logger") as mock_logger:
+            with patch("recursive_companion_mcp.core.convergence.logger") as mock_logger:
                 detector = create_detector_for_tool(tool_name)
 
                 assert isinstance(detector, ConvergenceDetector)
@@ -518,7 +518,7 @@ class TestToolSpecificDetectors:
 
     def test_create_detector_for_unknown_tool(self):
         """Test creating detector for unknown tool (uses default)"""
-        with patch("convergence.logger") as mock_logger:
+        with patch("recursive_companion_mcp.core.convergence.logger") as mock_logger:
             detector = create_detector_for_tool("unknown-tool")
 
             assert detector.config.threshold == 0.95  # Default threshold
@@ -531,7 +531,9 @@ class TestSimpleConvergenceCheck:
     @pytest.mark.asyncio
     async def test_simple_convergence_check(self):
         """Test simple convergence check utility"""
-        with patch("convergence.ConvergenceDetector") as mock_detector_class:
+        with patch(
+            "recursive_companion_mcp.core.convergence.ConvergenceDetector"
+        ) as mock_detector_class:
             mock_detector = AsyncMock()  # Use AsyncMock for async method
             mock_detector.is_converged.return_value = (True, 0.96)
             mock_detector_class.return_value = mock_detector
@@ -546,7 +548,9 @@ class TestSimpleConvergenceCheck:
     @pytest.mark.asyncio
     async def test_simple_convergence_check_default_threshold(self):
         """Test simple convergence check with default threshold"""
-        with patch("convergence.ConvergenceDetector") as mock_detector_class:
+        with patch(
+            "recursive_companion_mcp.core.convergence.ConvergenceDetector"
+        ) as mock_detector_class:
             mock_detector = AsyncMock()  # Use AsyncMock for async method
             mock_detector.is_converged.return_value = (False, 0.9)
             mock_detector_class.return_value = mock_detector

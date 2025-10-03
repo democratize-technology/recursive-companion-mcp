@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from recursive_companion_mcp.legacy.base_cognitive import (
+from recursive_companion_mcp.core.base_cognitive import (
     CognitiveConfig,
     CognitiveEnhancer,
     EnhancedThinkingTool,
@@ -93,7 +93,7 @@ class TestCognitiveEnhancer:
         """Test initialization with logging enabled"""
         config = CognitiveConfig(tool_name="test_tool", enable_logging=True, log_level="DEBUG")
 
-        with patch("base_cognitive.logger") as mock_logger:
+        with patch("recursive_companion_mcp.core.base_cognitive.logger") as mock_logger:
             enhancer = CognitiveEnhancer(config)
 
             assert enhancer.config == config
@@ -107,7 +107,7 @@ class TestCognitiveEnhancer:
         """Test initialization with logging disabled"""
         config = CognitiveConfig(tool_name="test_tool", enable_logging=False)
 
-        with patch("base_cognitive.logger") as mock_logger:
+        with patch("recursive_companion_mcp.core.base_cognitive.logger") as mock_logger:
             CognitiveEnhancer(config)
 
             # Should not call setLevel when logging disabled
@@ -165,7 +165,7 @@ class TestCognitiveEnhancer:
         config = CognitiveConfig(tool_name="test_tool")
         enhancer = CognitiveEnhancer(config)
 
-        with patch("base_cognitive.logger") as mock_logger:
+        with patch("recursive_companion_mcp.core.base_cognitive.logger") as mock_logger:
             result = enhancer.add_iteration("test content")
 
             assert len(enhancer.iteration_history) == 1
@@ -202,7 +202,7 @@ class TestCognitiveEnhancer:
         def failing_processor(input_data, iteration):
             raise Exception("Processing failed")
 
-        with patch("base_cognitive.logger") as mock_logger:
+        with patch("recursive_companion_mcp.core.base_cognitive.logger") as mock_logger:
             result = await enhancer.process_with_convergence(
                 failing_processor, "initial input", max_iterations=1
             )
@@ -221,7 +221,7 @@ class TestCognitiveEnhancer:
         def simple_processor(input_data, iteration):
             return f"processed_{input_data}_{iteration}"
 
-        with patch("base_cognitive.logger") as mock_logger:
+        with patch("recursive_companion_mcp.core.base_cognitive.logger") as mock_logger:
             result = await enhancer.process_with_convergence(
                 simple_processor, "input", max_iterations=1
             )
@@ -247,7 +247,7 @@ class TestCognitiveEnhancer:
         def simple_processor(input_data, iteration):
             return f"iteration_{iteration}"
 
-        with patch("base_cognitive.logger") as mock_logger:
+        with patch("recursive_companion_mcp.core.base_cognitive.logger") as mock_logger:
             result = await enhancer.process_with_convergence(
                 simple_processor, "input", max_iterations=5
             )
@@ -294,7 +294,7 @@ class TestCognitiveEnhancer:
                 raise ValueError("Second iteration fails")
             return f"iteration_{iteration}"
 
-        with patch("base_cognitive.logger") as mock_logger:
+        with patch("recursive_companion_mcp.core.base_cognitive.logger") as mock_logger:
             result = await enhancer.process_with_convergence(
                 failing_on_second_processor, "input", max_iterations=3
             )
@@ -562,7 +562,9 @@ class TestIterateUntilConvergence:
         def simple_processor(input_data):
             return f"processed_{input_data}"
 
-        with patch("base_cognitive.CognitiveEnhancer") as mock_enhancer_class:
+        with patch(
+            "recursive_companion_mcp.core.base_cognitive.CognitiveEnhancer"
+        ) as mock_enhancer_class:
             mock_enhancer = AsyncMock()  # Use AsyncMock since method is async
             mock_enhancer.process_with_convergence.return_value = {"result": "test"}
             mock_enhancer_class.return_value = mock_enhancer
@@ -580,7 +582,9 @@ class TestIterateUntilConvergence:
         def simple_processor(input_data):
             return f"processed_{input_data}"
 
-        with patch("base_cognitive.CognitiveEnhancer") as mock_enhancer_class:
+        with patch(
+            "recursive_companion_mcp.core.base_cognitive.CognitiveEnhancer"
+        ) as mock_enhancer_class:
             mock_enhancer = AsyncMock()  # Use AsyncMock since method is async
             mock_enhancer.process_with_convergence.return_value = {"result": "test"}
             mock_enhancer_class.return_value = mock_enhancer

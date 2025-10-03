@@ -10,16 +10,16 @@ import numpy as np
 import pytest
 
 # sys.path removed - using package imports
-from recursive_companion_mcp.legacy.bedrock_client import BedrockClient
-from recursive_companion_mcp.legacy.config import config
-from recursive_companion_mcp.legacy.domains import DomainDetector
-from recursive_companion_mcp.legacy.incremental_engine import (
+from recursive_companion_mcp.clients.bedrock import BedrockClient
+from recursive_companion_mcp.config import config
+from recursive_companion_mcp.core.domains import DomainDetector
+from recursive_companion_mcp.core.validation import SecurityValidator
+from recursive_companion_mcp.engines.incremental import (
     IncrementalRefineEngine,
     RefinementSession,
     RefinementStatus,
     SessionManager,
 )
-from recursive_companion_mcp.legacy.validation import SecurityValidator
 
 MAX_PROMPT_LENGTH = config.max_prompt_length
 

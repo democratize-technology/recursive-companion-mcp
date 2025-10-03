@@ -71,7 +71,7 @@ def format_output(func: Callable[..., T]) -> Callable[..., T]:
         if isinstance(result, str):
             return result
 
-        # If dict result from legacy functions, convert to string
+        # If dict result, convert to formatted string
         if isinstance(result, dict):
             if result.get("error"):
                 return f"❌ **Error**: {result['error']}"

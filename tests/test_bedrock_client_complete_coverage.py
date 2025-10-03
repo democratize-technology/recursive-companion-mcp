@@ -21,7 +21,7 @@ import pytest
 
 sys.path.append("src")
 
-from recursive_companion_mcp.legacy.bedrock_client import BedrockClient
+from recursive_companion_mcp.clients.bedrock import BedrockClient
 
 
 class TestBedrockClientCompleteCoverage:
@@ -92,7 +92,7 @@ class TestBedrockClientCompleteCoverage:
             patch("boto3.client"),
             patch.object(client, "_test_connection_async", new=AsyncMock()),
             patch.object(client, "_get_embedding_uncached_sync") as mock_embedding,
-            patch("bedrock_client.logger") as mock_logger,
+            patch("recursive_companion_mcp.clients.bedrock.logger") as mock_logger,
         ):
             # Set up embedding mock to return large embeddings that will trigger eviction
             large_embedding = [0.1] * 200  # 200 * 4 bytes = 800 bytes per embedding
@@ -195,7 +195,7 @@ class TestBedrockClientCompleteCoverage:
         """
         client = BedrockClient()
 
-        with patch("bedrock_client.logger") as mock_logger:
+        with patch("recursive_companion_mcp.clients.bedrock.logger") as mock_logger:
             # Ensure the executor attribute exists (it's created in __init__)
             assert hasattr(client, "_executor")
 
@@ -413,7 +413,7 @@ class TestBedrockClientCompleteCoverage:
         with (
             patch("boto3.client"),
             patch.object(client, "_test_connection_async", new=AsyncMock()),
-            patch("bedrock_client.logger") as mock_logger,
+            patch("recursive_companion_mcp.clients.bedrock.logger") as mock_logger,
         ):
             # Initialize client
             await client._ensure_initialized()

@@ -4,7 +4,7 @@ Tests for security enhancements including credential sanitization.
 
 from botocore.exceptions import ClientError
 
-from recursive_companion_mcp.legacy.security_utils import CredentialSanitizer
+from recursive_companion_mcp.core.security import CredentialSanitizer
 
 
 class TestCredentialSanitizer:

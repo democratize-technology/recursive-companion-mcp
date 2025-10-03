@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from recursive_companion_mcp.legacy.internal_cot import (
+from recursive_companion_mcp.core.internal_cot import (
     TOOL_SPECS,
     AsyncChainOfThoughtProcessor,
     create_processor,

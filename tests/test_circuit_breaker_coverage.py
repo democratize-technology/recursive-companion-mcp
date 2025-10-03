@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from recursive_companion_mcp.legacy.circuit_breaker import (
+from recursive_companion_mcp.core.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
     CircuitBreakerOpenError,

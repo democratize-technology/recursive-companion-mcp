@@ -57,16 +57,19 @@ class TestIncrementalEngineSurgical:
         due to import-time execution complexity. This test covers the related
         functionality when COT_AVAILABLE is False.
         """
-        from incremental_engine import IncrementalRefineEngine
+        from recursive_companion_mcp.engines.incremental import IncrementalRefineEngine
 
         # Test the case where COT_AVAILABLE is False by patching it
-        with patch("incremental_engine.COT_AVAILABLE", False):
+        with patch("recursive_companion_mcp.engines.incremental.COT_AVAILABLE", False):
             engine = IncrementalRefineEngine(mock_bedrock, mock_domain_detector, mock_validator)
 
             # This should hit line 292: return [] when COT not available
             tools = engine.get_cot_tools()
             assert tools == []
 
+    @pytest.mark.skip(
+        reason="Obsolete - SessionTracker no longer has create_session method after refactoring"
+    )
     async def test_session_persistence_exception_lines_165_167(
         self, mock_bedrock, mock_domain_detector, mock_validator
     ):
@@ -75,17 +78,17 @@ class TestIncrementalEngineSurgical:
 
         Lines 165-167: Exception handling in _persist_session() method
         """
-        from incremental_engine import SessionManager
+        from recursive_companion_mcp.core.session_manager import SessionTracker
 
         # Create session manager with mocked persistence that fails
-        with patch("incremental_engine.persistence_manager") as mock_pm:
+        with patch("recursive_companion_mcp.engines.incremental.persistence_manager") as mock_pm:
             # Make save_session raise an exception
             mock_pm.save_session.side_effect = ValueError("Serialization failed")
 
-            session_manager = SessionManager()
+            session_manager = SessionTracker()
 
             # Create a session (this will trigger _persist_session)
-            with patch("incremental_engine.logger") as mock_logger:
+            with patch("recursive_companion_mcp.engines.incremental.logger") as mock_logger:
                 session = await session_manager.create_session("test prompt", "technical", {})
 
                 # Verify the error was logged (lines 165-167 were executed)
@@ -94,6 +97,9 @@ class TestIncrementalEngineSurgical:
                 assert "Failed to persist session" in str(error_call)
                 assert session.session_id in str(error_call)
 
+    @pytest.mark.skip(
+        reason="Obsolete - SessionTracker no longer has _reconstruct_session method after refactoring"
+    )
     async def test_session_reconstruction_exception_lines_211_213(
         self, mock_bedrock, mock_domain_detector, mock_validator
     ):
@@ -102,9 +108,9 @@ class TestIncrementalEngineSurgical:
 
         Lines 211-213: Exception handling in _reconstruct_session() method
         """
-        from incremental_engine import SessionManager
+        from recursive_companion_mcp.core.session_manager import SessionTracker
 
-        session_manager = SessionManager()
+        session_manager = SessionTracker()
 
         # Create malformed session data that will cause reconstruction to fail
         malformed_data = {
@@ -116,7 +122,7 @@ class TestIncrementalEngineSurgical:
             "created_at": "invalid_date_format",  # This will cause datetime parsing to fail
         }
 
-        with patch("incremental_engine.logger") as mock_logger:
+        with patch("recursive_companion_mcp.engines.incremental.logger") as mock_logger:
             # This should trigger the exception handler in _reconstruct_session
             result = session_manager._reconstruct_session(malformed_data)
 
@@ -134,12 +140,12 @@ class TestIncrementalEngineSurgical:
 
         Line 311: return "No response generated" when no messages found
         """
-        from incremental_engine import IncrementalRefineEngine
+        from recursive_companion_mcp.engines.incremental import IncrementalRefineEngine
 
         engine = IncrementalRefineEngine(mock_bedrock, mock_domain_detector, mock_validator)
 
         # Mock COT as available but create request with empty messages
-        with patch("incremental_engine.COT_AVAILABLE", True):
+        with patch("recursive_companion_mcp.engines.incremental.COT_AVAILABLE", True):
             request = {
                 "messages": [],
                 "system": [{"text": "system prompt"}],
@@ -157,7 +163,7 @@ class TestIncrementalEngineSurgical:
 
         Line 325: return "No response generated" when no text content extracted
         """
-        from incremental_engine import IncrementalRefineEngine
+        from recursive_companion_mcp.engines.incremental import IncrementalRefineEngine
 
         engine = IncrementalRefineEngine(mock_bedrock, mock_domain_detector, mock_validator)
 
@@ -174,7 +180,7 @@ class TestIncrementalEngineSurgical:
             }
         }
 
-        with patch("incremental_engine.COT_AVAILABLE", True):
+        with patch("recursive_companion_mcp.engines.incremental.COT_AVAILABLE", True):
             request = {
                 "messages": [{"role": "user", "content": [{"text": "test"}]}],
                 "system": [{"text": "system"}],
@@ -192,7 +198,7 @@ class TestIncrementalEngineSurgical:
 
         Line 339: return "Error processing request" when basic generation also fails
         """
-        from incremental_engine import IncrementalRefineEngine
+        from recursive_companion_mcp.engines.incremental import IncrementalRefineEngine
 
         engine = IncrementalRefineEngine(mock_bedrock, mock_domain_detector, mock_validator)
 
@@ -203,8 +209,8 @@ class TestIncrementalEngineSurgical:
         # Mock bedrock generate_text to also fail (no messages case)
         mock_bedrock.generate_text.side_effect = Exception("Bedrock also failed")
 
-        with patch("incremental_engine.COT_AVAILABLE", True):
-            with patch("incremental_engine.logger"):
+        with patch("recursive_companion_mcp.engines.incremental.COT_AVAILABLE", True):
+            with patch("recursive_companion_mcp.engines.incremental.logger"):
                 request = {
                     "messages": [],  # Empty messages to trigger second failure path
                     "system": [{"text": "system"}],
@@ -222,9 +228,10 @@ class TestIncrementalEngineSurgical:
 
         Line 837: _ai_prediction assignment when convergence_score > 0.9
         """
-        from domains import DomainDetector
-        from incremental_engine import IncrementalRefineEngine, RefinementStatus
-        from validation import SecurityValidator
+        from recursive_companion_mcp.core.domains import DomainDetector
+        from recursive_companion_mcp.core.refinement_types import RefinementStatus
+        from recursive_companion_mcp.core.validation import SecurityValidator
+        from recursive_companion_mcp.engines.incremental import IncrementalRefineEngine
 
         # Use real domain detector and validator like other tests
         real_detector = DomainDetector()

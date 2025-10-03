@@ -12,21 +12,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Import modules from package structure
+from ..clients.bedrock import BedrockClient
 from ..core import format_output, handle_tool_errors, mcp
+from ..core.domains import DomainDetector
+from ..core.session_manager import SessionTracker
+from ..core.validation import SecurityValidator
 from ..decorators import inject_client_context
+from ..engines.incremental import IncrementalRefineEngine
 from ..formatting import (
     format_refinement_continue,
     format_refinement_start,
     format_refinement_status,
-)
-
-# Import legacy modules from package structure
-from ..legacy import (
-    BedrockClient,
-    DomainDetector,
-    IncrementalRefineEngine,
-    SecurityValidator,
-    SessionTracker,
 )
 
 # Initialize global engine (will be created on first use)
