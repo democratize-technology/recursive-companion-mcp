@@ -54,7 +54,8 @@ def main() -> None:
     # Test AWS Bedrock connection
     try:
         import boto3
-        from config import config
+
+        from .legacy.config import config
 
         bedrock_test = boto3.client(service_name="bedrock", region_name=config.aws_region)
         bedrock_test.list_foundation_models()
@@ -85,7 +86,8 @@ def http_main(host: str = "127.0.0.1", port: int = 8080) -> None:
     # Test AWS Bedrock connection
     try:
         import boto3
-        from config import config
+
+        from .legacy.config import config
 
         bedrock_test = boto3.client(service_name="bedrock", region_name=config.aws_region)
         bedrock_test.list_foundation_models()

@@ -12,5 +12,5 @@ fi
 # Change to the project directory
 cd "$(dirname "$0")"
 
-# Run the server using uv
-exec "$UV_PATH" run python src/server.py
+# Run the server using uv (FastMCP module entry point)
+exec "$UV_PATH" run python -m recursive_companion_mcp
