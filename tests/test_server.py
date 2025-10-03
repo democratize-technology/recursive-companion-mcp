@@ -6,17 +6,16 @@ Test suite for Recursive Companion MCP Server
 import json
 
 # Import components to test
-import sys
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-sys.path.insert(0, "./src")
-from bedrock_client import BedrockClient
-from domains import DomainDetector
-from refine_engine import RefineEngine
-from server import handle_list_tools
-from validation import SecurityValidator
+# sys.path removed - using package imports
+from recursive_companion_mcp.legacy.bedrock_client import BedrockClient
+from recursive_companion_mcp.legacy.domains import DomainDetector
+from recursive_companion_mcp.legacy.refine_engine import RefineEngine
+from recursive_companion_mcp.legacy.server import handle_list_tools
+from recursive_companion_mcp.legacy.validation import SecurityValidator
 
 
 class TestSecurityValidator:

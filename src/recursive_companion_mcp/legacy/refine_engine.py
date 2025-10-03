@@ -30,12 +30,12 @@ import asyncio
 import logging
 import time
 
-from bedrock_client import BedrockClient
-from config import config
-from convergence import ConvergenceDetector
-from domains import DomainDetector, get_domain_system_prompt
-from session_manager import RefinementIteration, RefinementResult
-from validation import SecurityValidator
+from .bedrock_client import BedrockClient
+from .config import config
+from .convergence import ConvergenceDetector
+from .domains import DomainDetector, get_domain_system_prompt
+from .session_manager import RefinementIteration, RefinementResult
+from .validation import SecurityValidator
 
 logger = logging.getLogger(__name__)
 

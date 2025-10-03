@@ -2,19 +2,22 @@
 Unit tests for extracted modules
 """
 
-import sys
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-sys.path.insert(0, "./src")
+from recursive_companion_mcp.legacy.bedrock_client import BedrockClient
+from recursive_companion_mcp.legacy.config import config
+from recursive_companion_mcp.legacy.error_handling import create_ai_error_response
+from recursive_companion_mcp.legacy.refine_engine import RefineEngine
+from recursive_companion_mcp.legacy.session_manager import (
+    RefinementIteration,
+    RefinementResult,
+    SessionTracker,
+)
+from recursive_companion_mcp.legacy.validation import SecurityValidator
 
-from bedrock_client import BedrockClient
-from config import config
-from error_handling import create_ai_error_response
-from refine_engine import RefineEngine
-from session_manager import RefinementIteration, RefinementResult, SessionTracker
-from validation import SecurityValidator
+# sys.path removed - using package imports
 
 
 class TestBedrockClientUnit:

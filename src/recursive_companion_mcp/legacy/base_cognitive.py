@@ -35,7 +35,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from convergence import create_detector_for_tool
+from .convergence import create_detector_for_tool
 
 logger = logging.getLogger(__name__)
 

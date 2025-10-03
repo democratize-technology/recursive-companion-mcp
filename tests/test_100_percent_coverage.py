@@ -10,22 +10,21 @@ Targets specific missing lines identified in coverage analysis:
 
 import asyncio
 import json
-import sys
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from botocore.exceptions import ClientError, NoCredentialsError
 
-sys.path.insert(0, "./src")
-
 # Import modules to test
-from bedrock_client import BedrockClient, CircuitBreakerOpenError
-from circuit_breaker import CircuitBreaker
-from domains import DomainDetector
-from incremental_engine import IncrementalRefineEngine
-from server import main
-from session_persistence import SessionPersistenceManager
-from validation import SecurityValidator
+from recursive_companion_mcp.legacy.bedrock_client import BedrockClient, CircuitBreakerOpenError
+from recursive_companion_mcp.legacy.circuit_breaker import CircuitBreaker
+from recursive_companion_mcp.legacy.domains import DomainDetector
+from recursive_companion_mcp.legacy.incremental_engine import IncrementalRefineEngine
+from recursive_companion_mcp.legacy.server import main
+from recursive_companion_mcp.legacy.session_persistence import SessionPersistenceManager
+from recursive_companion_mcp.legacy.validation import SecurityValidator
+
+# sys.path removed - using package imports
 
 
 class TestBedrockClientEdgeCases:

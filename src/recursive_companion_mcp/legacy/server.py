@@ -38,14 +38,14 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from bedrock_client import BedrockClient
-from config import config
-from domains import DomainDetector
-from error_handling import create_ai_error_response
-from incremental_engine import IncrementalRefineEngine
-from refine_engine import RefineEngine
-from session_manager import SessionTracker
-from validation import SecurityValidator
+from .bedrock_client import BedrockClient
+from .config import config
+from .domains import DomainDetector
+from .error_handling import create_ai_error_response
+from .incremental_engine import IncrementalRefineEngine
+from .refine_engine import RefineEngine
+from .session_manager import SessionTracker
+from .validation import SecurityValidator
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"

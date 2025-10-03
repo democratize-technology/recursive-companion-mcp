@@ -13,7 +13,10 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from src.session_persistence import SessionPersistenceManager, SessionSnapshot
+from recursive_companion_mcp.legacy.session_persistence import (
+    SessionPersistenceManager,
+    SessionSnapshot,
+)
 
 
 class TestSessionPersistenceManager:

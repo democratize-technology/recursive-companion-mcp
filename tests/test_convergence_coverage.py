@@ -3,14 +3,13 @@ Surgical tests for ConvergenceDetector to achieve 100% coverage.
 Specifically targets missing lines: 74, 287
 """
 
-import sys
 from unittest.mock import patch
 
 import pytest
 
-sys.path.insert(0, "./src")
+from recursive_companion_mcp.legacy.convergence import EmbeddingService, basic_text_convergence
 
-from convergence import EmbeddingService, basic_text_convergence
+# sys.path removed - using package imports
 
 
 class TestConvergenceCoverage:

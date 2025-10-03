@@ -3,15 +3,12 @@ Comprehensive tests for base_cognitive.py module to achieve 100% coverage.
 Tests cover all defensive programming branches, error conditions, and edge cases.
 """
 
-import sys
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-sys.path.insert(0, "./src")
-
-from base_cognitive import (
+from recursive_companion_mcp.legacy.base_cognitive import (
     CognitiveConfig,
     CognitiveEnhancer,
     EnhancedThinkingTool,
@@ -19,6 +16,8 @@ from base_cognitive import (
     iterate_until_convergence,
     with_convergence,
 )
+
+# sys.path removed - using package imports
 
 
 class TestCognitiveConfig:

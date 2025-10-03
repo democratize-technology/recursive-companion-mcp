@@ -7,13 +7,12 @@ These tests focus on defensive programming branches and error handling edge case
 Missing lines to cover: 46-47, 165-167, 211-213, 292, 311, 325, 339, 837
 """
 
-import sys
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 # Add src to path like other tests
-sys.path.insert(0, "./src")
+# sys.path removed - using package imports
 
 
 @pytest.fixture

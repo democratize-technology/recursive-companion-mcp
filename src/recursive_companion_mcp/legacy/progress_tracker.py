@@ -6,7 +6,7 @@ formatting status information, and managing session state displays.
 
 from typing import Any
 
-from refinement_types import RefinementSession, RefinementStatus
+from .refinement_types import RefinementSession, RefinementStatus
 
 
 class ProgressTracker:

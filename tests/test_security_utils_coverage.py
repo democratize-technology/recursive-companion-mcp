@@ -3,11 +3,9 @@ Surgical tests for SecurityValidator to achieve 100% coverage.
 Specifically targets missing lines: 148, 158, 186, 213
 """
 
-import sys
+from recursive_companion_mcp.legacy.security_utils import CredentialSanitizer
 
-sys.path.insert(0, "./src")
-
-from security_utils import CredentialSanitizer
+# sys.path removed - using package imports
 
 
 class TestSecurityUtilsCoverage:

@@ -30,7 +30,7 @@ Provides structured error responses that help AI assistants understand and recov
 import logging
 from typing import Any
 
-from config import config
+from .config import config
 
 logger = logging.getLogger(__name__)
 

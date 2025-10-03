@@ -6,7 +6,7 @@ domain-specific system prompts, and other refinement engine settings.
 
 import os
 
-from domains import get_domain_system_prompt
+from .domains import get_domain_system_prompt
 
 
 class ConfigurationManager:

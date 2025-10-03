@@ -5,17 +5,16 @@ Simplified approach using actual APIs to trigger defensive code paths
 """
 
 import json
-import sys
 from unittest.mock import patch
 
 import pytest
 
-sys.path.insert(0, "./src")
-
 # Import modules to test
-from bedrock_client import BedrockClient
-from server import handle_call_tool
-from session_persistence import SessionPersistenceManager
+from recursive_companion_mcp.legacy.bedrock_client import BedrockClient
+from recursive_companion_mcp.legacy.server import handle_call_tool
+from recursive_companion_mcp.legacy.session_persistence import SessionPersistenceManager
+
+# sys.path removed - using package imports
 
 
 class TestFocusedCoverage:

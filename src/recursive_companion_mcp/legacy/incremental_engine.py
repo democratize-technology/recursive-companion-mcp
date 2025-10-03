@@ -33,17 +33,17 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from configuration_manager import ConfigurationManager
-from convergence import ConvergenceDetector
-from cot_enhancement import create_cot_enhancer
+from .configuration_manager import ConfigurationManager
+from .convergence import ConvergenceDetector
+from .cot_enhancement import create_cot_enhancer
 
 # Use internal chain-of-thought implementation for security
-from internal_cot import TOOL_SPECS, AsyncChainOfThoughtProcessor
+from .internal_cot import TOOL_SPECS, AsyncChainOfThoughtProcessor
 
 # Extracted utility modules
-from progress_tracker import ProgressTracker
-from refinement_types import RefinementSession, RefinementStatus
-from session_persistence import persistence_manager
+from .progress_tracker import ProgressTracker
+from .refinement_types import RefinementSession, RefinementStatus
+from .session_persistence import persistence_manager
 
 COT_AVAILABLE = True
 

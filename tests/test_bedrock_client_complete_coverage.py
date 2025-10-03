@@ -21,7 +21,7 @@ import pytest
 
 sys.path.append("src")
 
-from bedrock_client import BedrockClient
+from recursive_companion_mcp.legacy.bedrock_client import BedrockClient
 
 
 class TestBedrockClientCompleteCoverage:

@@ -5,19 +5,18 @@ Extended tests for MCP Server - achieving 100% coverage
 import asyncio
 import json
 import os
-import sys
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-sys.path.insert(0, "./src")
-from bedrock_client import BedrockClient
-from config import config
-from domains import DomainDetector
-from error_handling import create_ai_error_response
-from incremental_engine import IncrementalRefineEngine
-from validation import SecurityValidator
+# sys.path removed - using package imports
+from recursive_companion_mcp.legacy.bedrock_client import BedrockClient
+from recursive_companion_mcp.legacy.config import config
+from recursive_companion_mcp.legacy.domains import DomainDetector
+from recursive_companion_mcp.legacy.error_handling import create_ai_error_response
+from recursive_companion_mcp.legacy.incremental_engine import IncrementalRefineEngine
+from recursive_companion_mcp.legacy.validation import SecurityValidator
 
 MAX_PROMPT_LENGTH = config.max_prompt_length
 

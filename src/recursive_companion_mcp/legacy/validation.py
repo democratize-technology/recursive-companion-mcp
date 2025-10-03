@@ -29,7 +29,7 @@ Handles prompt validation and security checks.
 
 import re
 
-from config import config
+from .config import config
 
 
 class SecurityValidator:

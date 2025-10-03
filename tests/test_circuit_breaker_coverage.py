@@ -3,19 +3,18 @@ Surgical tests for CircuitBreaker to achieve 100% coverage.
 Specifically targets missing lines: 143, 223, 250-251
 """
 
-import sys
 import time
 
 import pytest
 
-sys.path.insert(0, "./src")
-
-from circuit_breaker import (
+from recursive_companion_mcp.legacy.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
     CircuitBreakerOpenError,
     CircuitState,
 )
+
+# sys.path removed - using package imports
 
 
 class TestCircuitBreakerCoverage:

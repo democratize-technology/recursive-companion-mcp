@@ -2,16 +2,19 @@
 Extended tests for IncrementalRefineEngine - achieving 100% coverage
 """
 
-import sys
 from unittest.mock import AsyncMock, Mock
 
 import numpy as np
 import pytest
 
-sys.path.insert(0, "./src")
-from domains import DomainDetector
-from incremental_engine import IncrementalRefineEngine, RefinementSession, RefinementStatus
-from validation import SecurityValidator
+# sys.path removed - using package imports
+from recursive_companion_mcp.legacy.domains import DomainDetector
+from recursive_companion_mcp.legacy.incremental_engine import (
+    IncrementalRefineEngine,
+    RefinementSession,
+    RefinementStatus,
+)
+from recursive_companion_mcp.legacy.validation import SecurityValidator
 
 
 class TestDomainDetectionExtended:

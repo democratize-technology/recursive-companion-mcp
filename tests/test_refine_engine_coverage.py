@@ -4,18 +4,17 @@ Specifically targets missing lines: 132-133, 189-194
 """
 
 import logging
-import sys
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-sys.path.insert(0, "./src")
+from recursive_companion_mcp.legacy.bedrock_client import BedrockClient
+from recursive_companion_mcp.legacy.convergence import ConvergenceDetector
+from recursive_companion_mcp.legacy.domains import DomainDetector
+from recursive_companion_mcp.legacy.refine_engine import RefineEngine
+from recursive_companion_mcp.legacy.validation import SecurityValidator
 
-from bedrock_client import BedrockClient
-from convergence import ConvergenceDetector
-from domains import DomainDetector
-from refine_engine import RefineEngine
-from validation import SecurityValidator
+# sys.path removed - using package imports
 
 
 class TestRefineEngineCoverage:

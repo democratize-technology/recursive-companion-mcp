@@ -3,24 +3,23 @@ Tests for Incremental Refinement Engine
 """
 
 # Import components from our modules
-import sys
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock
 
 import numpy as np
 import pytest
 
-sys.path.insert(0, "./src")
-from bedrock_client import BedrockClient
-from config import config
-from domains import DomainDetector
-from incremental_engine import (
+# sys.path removed - using package imports
+from recursive_companion_mcp.legacy.bedrock_client import BedrockClient
+from recursive_companion_mcp.legacy.config import config
+from recursive_companion_mcp.legacy.domains import DomainDetector
+from recursive_companion_mcp.legacy.incremental_engine import (
     IncrementalRefineEngine,
     RefinementSession,
     RefinementStatus,
     SessionManager,
 )
-from validation import SecurityValidator
+from recursive_companion_mcp.legacy.validation import SecurityValidator
 
 MAX_PROMPT_LENGTH = config.max_prompt_length
 

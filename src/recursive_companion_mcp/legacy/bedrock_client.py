@@ -38,9 +38,9 @@ from typing import Any
 
 import boto3
 
-from circuit_breaker import CircuitBreakerConfig, CircuitBreakerOpenError, circuit_manager
-from config import config
-from security_utils import CredentialSanitizer
+from .circuit_breaker import CircuitBreakerConfig, CircuitBreakerOpenError, circuit_manager
+from .config import config
+from .security_utils import CredentialSanitizer
 
 logger = logging.getLogger(__name__)
 

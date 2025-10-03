@@ -6,15 +6,12 @@ Tests cover AWS Bedrock integration, caching, mathematical operations, and error
 import asyncio
 import hashlib
 import json
-import sys
 from collections import OrderedDict
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-sys.path.insert(0, "./src")
-
-from convergence import (
+from recursive_companion_mcp.legacy.convergence import (
     ConvergenceConfig,
     ConvergenceDetector,
     EmbeddingService,
@@ -22,6 +19,8 @@ from convergence import (
     create_detector_for_tool,
     simple_convergence_check,
 )
+
+# sys.path removed - using package imports
 
 
 class TestConvergenceConfig:

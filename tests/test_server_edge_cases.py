@@ -8,14 +8,13 @@ MISSING LINES TARGETED: 225, 272-274, 287, 302-304, 316, 331-333, 346,
 """
 
 import json
-import sys
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-sys.path.insert(0, "./src")
+from recursive_companion_mcp.legacy import server
 
-import server
+# sys.path removed - using package imports
 
 
 class TestEngineInitializationFailures:
