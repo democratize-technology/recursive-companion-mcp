@@ -3,7 +3,6 @@ Extended tests for MCP Server - achieving 100% coverage
 """
 
 import asyncio
-import json
 import os
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
@@ -167,23 +166,6 @@ class TestErrorHandling:
 
 class TestMCPServerTools:
     """Test MCP server tool handlers"""
-
-    @pytest.mark.skip(
-        reason="Obsolete - incremental_engine is no longer in server.py after refactoring"
-    )
-    @pytest.mark.asyncio
-    async def test_start_refinement_no_engine(self):
-        """Test start_refinement when engine is not initialized"""
-
-        # Mock the handle_call_tool function behavior
-        with patch("recursive_companion_mcp.core.server.incremental_engine", None):
-            # Simulate the tool call
-            result_content = json.dumps(
-                {"error": "Incremental engine not initialized", "success": False},
-                indent=2,
-            )
-
-            assert "not initialized" in result_content
 
     @pytest.mark.asyncio
     async def test_continue_refinement_no_session(self):
@@ -423,35 +405,3 @@ class TestDomainAutoDetection:
 
 class TestMainFunction:
     """Test the main function and server lifecycle"""
-
-    @pytest.mark.skip(
-        reason="Obsolete - testing old server structure, main() no longer uses these patterns"
-    )
-    @pytest.mark.asyncio
-    async def test_main_function_initialization(self):
-        """Test main function initializes server correctly"""
-        with patch("recursive_companion_mcp.core.server.Server") as mock_server_class:
-            mock_server = Mock()
-            mock_server.run = AsyncMock()
-            mock_server_class.return_value = mock_server
-
-            with patch("recursive_companion_mcp.core.server.stdio_server") as mock_stdio:
-                mock_stdio.return_value.__aenter__ = AsyncMock(return_value=(Mock(), Mock()))
-                mock_stdio.return_value.__aexit__ = AsyncMock(return_value=None)
-                # Test that main would initialize properly
-                # (Can't actually run main due to async complexities)
-                assert mock_server_class is not None
-                assert mock_stdio is not None
-
-    @pytest.mark.skip(
-        reason="Obsolete - testing old server structure, main() no longer uses these patterns"
-    )
-    @pytest.mark.asyncio
-    async def test_server_error_handling_in_main(self):
-        """Test error handling in main function"""
-        with patch("recursive_companion_mcp.core.server.Server") as mock_server_class:
-            mock_server_class.side_effect = Exception("Server initialization failed")
-
-            # Test that errors are handled gracefully
-            with pytest.raises(Exception, match="Server initialization failed"):
-                raise mock_server_class.side_effect
