@@ -7,14 +7,15 @@ name = "recursive-companion-mcp"
 version = "1.0.0"
 description = "MCP server for iterative refinement through self-critique cycles using AWS Bedrock. Inspired by Hank Besser's recursive-companion."
 readme = "README.md"
-requires-python = ">=3.10"
+# SECURITY: CVE-2025-59356 defensive versioning (full PEP 706 protection in Python 3.13+)
+requires-python = ">=3.12"
 license = {text = "MIT"}
 authors = [
     {name = "Recursive Companion Contributors", email = "contact@thinkerz.ai"},
 ]
 dependencies = [
-    # CRITICAL SECURITY UPDATE: fastmcp >= 2.12.0 to fix CVE-2025-53366 (DoS vulnerability)
-    "fastmcp>=2.12.0,<3.0.0",
+    # CRITICAL SECURITY UPDATE: fastmcp >= 2.12.4 to pull authlib >= 1.6.4 (CVE-2025-59420 mitigation)
+    "fastmcp>=2.12.4,<3.0.0",
     "pydantic>=2.11.0,<3.0.0",
     "boto3>=1.39.0,<2.0.0",
     # CRITICAL SECURITY UPDATE: litellm >= 1.76.0 to fix SQL injection and API key leakage CVEs
@@ -68,7 +69,7 @@ release = [
 
 [tool.black]
 line-length = 120
-target-version = ['py39', 'py310', 'py311', 'py312']
+target-version = ['py312', 'py313']
 
 [tool.flake8]
 max-line-length = 100
@@ -118,7 +119,7 @@ markers = [
 ]
 
 [tool.mypy]
-python_version = "3.10"
+python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -166,7 +167,7 @@ upload_to_vcs_release = true
 
 [tool.ruff]
 line-length = 120
-target-version = "py39"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
