@@ -6,7 +6,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Running the server:**
 ```bash
-uv run python src/server.py
+# Stdio transport (default - for Claude Desktop)
+uv run python -m recursive_companion_mcp
+
+# HTTP transport (for network access)
+export MCP_TRANSPORT=http
+export MCP_HTTP_HOST=127.0.0.1  # Optional, defaults to 127.0.0.1
+export MCP_HTTP_PORT=8080       # Optional, defaults to 8080
+uv run python -m recursive_companion_mcp
+```
+
+### Transport Modes
+
+**Stdio Transport (default - for Claude Desktop):**
+```bash
+uv run python -m recursive_companion_mcp
+```
+
+**HTTP Transport (for network access):**
+```bash
+export MCP_TRANSPORT=http
+export MCP_HTTP_HOST=127.0.0.1  # Optional, defaults to 127.0.0.1
+export MCP_HTTP_PORT=8080       # Optional, defaults to 8080
+uv run python -m recursive_companion_mcp
+```
+
+Or in a single command:
+```bash
+MCP_TRANSPORT=http MCP_HTTP_PORT=8080 uv run python -m recursive_companion_mcp
 ```
 
 **Running tests:**

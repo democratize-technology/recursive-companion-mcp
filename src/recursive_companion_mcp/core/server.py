@@ -21,8 +21,34 @@ logger = logging.getLogger(__name__)
 # Type variable for decorators
 T = TypeVar("T")
 
-# Create FastMCP instance
-mcp = FastMCP("recursive-companion")
+# Module-level mcp instance (for backward compatibility)
+_mcp_instance: FastMCP | None = None
+
+
+def get_mcp_server(host: str = "127.0.0.1", port: int = 8080) -> FastMCP:
+    """Get or create the FastMCP server instance.
+
+    Args:
+        host: Host to bind to for HTTP transport (default: 127.0.0.1 - localhost only)
+        port: Port to bind to for HTTP transport (default: 8080 - standard MCP HTTP port)
+
+    Returns:
+        Configured FastMCP server instance
+    """
+    global _mcp_instance
+
+    # Create new instance with specified host/port
+    mcp_server = FastMCP("recursive-companion", host=host, port=port)
+
+    # Cache for module-level access
+    if _mcp_instance is None:
+        _mcp_instance = mcp_server
+
+    return mcp_server
+
+
+# Create default instance for backward compatibility
+mcp = get_mcp_server()
 
 
 def handle_tool_errors(func: Callable[..., T]) -> Callable[..., T]:

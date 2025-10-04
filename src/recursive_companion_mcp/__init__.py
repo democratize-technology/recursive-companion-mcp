@@ -9,7 +9,9 @@ CRITICAL: This server uses stdio transport for MCP protocol communication.
 - Never logger.info() to stdout in MCP server code
 """
 
+import asyncio
 import logging
+import os
 import sys
 
 # Configure logging to stderr only - NEVER stdout in MCP servers
@@ -20,7 +22,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from .core import mcp  # noqa: E402
+from .core.server import get_mcp_server  # noqa: E402
 
 # Import tools at module level so they register with mcp instance
 from .tools import (  # noqa: F401, E402
@@ -34,7 +36,7 @@ from .tools import (  # noqa: F401, E402
     start_refinement,
 )
 
-__all__ = ["main", "http_main", "mcp", "create_server"]
+__all__ = ["main", "create_server"]
 
 
 def create_server():
@@ -44,7 +46,7 @@ def create_server():
         The configured MCP server instance with all tools registered.
     """
     # Tools are already imported at module level and registered with mcp instance
-    return mcp
+    return get_mcp_server()
 
 
 def main() -> None:
@@ -67,14 +69,15 @@ def main() -> None:
 
     # Tools are already imported at module level
     try:
-        mcp.run()
+        server = get_mcp_server()
+        server.run()
     except Exception as e:
         logger.error(f"Server error: {e}")
         sys.exit(1)
 
 
 def http_main(host: str = "127.0.0.1", port: int = 8080) -> None:
-    """Run the MCP server with HTTP transport.
+    """Run the MCP server with HTTP transport using FastMCP's native support.
 
     Args:
         host: Host to bind to (default: 127.0.0.1 for localhost only)
@@ -95,26 +98,24 @@ def http_main(host: str = "127.0.0.1", port: int = 8080) -> None:
     except Exception as e:
         logger.warning(f"AWS Bedrock connection test failed (continuing): {e}")
 
-    # Import HTTP transport
-    from .transports import create_http_app
-
-    # Create HTTP app
-    app = create_http_app()
-
-    # Run with uvicorn
-    import uvicorn
-
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    try:
+        server = get_mcp_server(host=host, port=port)
+        # Use run_streamable_http_async for HTTP transport
+        asyncio.run(server.run_streamable_http_async())
+    except KeyboardInterrupt:
+        logger.info("Server shutdown requested")
+    except Exception:
+        logger.exception("Server error")
+        raise
 
 
 if __name__ == "__main__":
-    import os
-
     # Check if HTTP mode requested
     transport = os.environ.get("MCP_TRANSPORT", "stdio")
 
     if transport == "http":
+        host = os.environ.get("MCP_HTTP_HOST", "127.0.0.1")
         port = int(os.environ.get("MCP_HTTP_PORT", "8080"))
-        http_main(port=port)
+        http_main(host=host, port=port)
     else:
         main()
