@@ -24,18 +24,6 @@ logger = logging.getLogger(__name__)
 
 from .core.server import get_mcp_server  # noqa: E402
 
-# Import tools at module level so they register with mcp instance
-from .tools import (  # noqa: F401, E402
-    abort_refinement,
-    continue_refinement,
-    current_session,
-    get_final_result,
-    get_refinement_status,
-    list_refinement_sessions,
-    quick_refine,
-    start_refinement,
-)
-
 __all__ = ["main", "create_server"]
 
 
@@ -45,7 +33,19 @@ def create_server():
     Returns:
         The configured MCP server instance with all tools registered.
     """
-    # Tools are already imported at module level and registered with mcp instance
+    # Import tools LAZILY (only when creating server) to avoid circular import deadlock
+    # Tools register with the mcp instance via decorators when imported
+    from .tools import (  # noqa: F401
+        abort_refinement,
+        continue_refinement,
+        current_session,
+        get_final_result,
+        get_refinement_status,
+        list_refinement_sessions,
+        quick_refine,
+        start_refinement,
+    )
+
     return get_mcp_server()
 
 
@@ -67,9 +67,9 @@ def main() -> None:
     except Exception as e:
         logger.warning(f"AWS Bedrock connection test failed (continuing): {e}")
 
-    # Tools are already imported at module level
+    # Import tools and create server
     try:
-        server = get_mcp_server()
+        server = create_server()  # Uses lazy tool import
         server.run()
     except Exception as e:
         logger.error(f"Server error: {e}")
@@ -99,6 +99,18 @@ def http_main(host: str = "127.0.0.1", port: int = 8080) -> None:
         logger.warning(f"AWS Bedrock connection test failed (continuing): {e}")
 
     try:
+        # Import tools lazily before creating server
+        from .tools import (  # noqa: F401
+            abort_refinement,
+            continue_refinement,
+            current_session,
+            get_final_result,
+            get_refinement_status,
+            list_refinement_sessions,
+            quick_refine,
+            start_refinement,
+        )
+
         server = get_mcp_server(host=host, port=port)
         # Use run_streamable_http_async for HTTP transport
         asyncio.run(server.run_streamable_http_async())

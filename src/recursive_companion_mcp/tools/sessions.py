@@ -12,7 +12,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from ..core import format_output, handle_tool_errors, mcp
+from ..core import format_output, handle_tool_errors
+from ..core.server import mcp  # Import mcp directly from server to avoid circular import
 from ..decorators import inject_client_context
 from ..formatting import format_current_session, format_session_list
 from .refinement import get_incremental_engine

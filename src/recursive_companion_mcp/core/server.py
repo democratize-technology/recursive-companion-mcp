@@ -47,8 +47,29 @@ def get_mcp_server(host: str = "127.0.0.1", port: int = 8080) -> FastMCP:
     return mcp_server
 
 
-# Create default instance for backward compatibility
-mcp = get_mcp_server()
+def _get_mcp_lazy() -> FastMCP:
+    """Get the mcp instance lazily - creates it only when first accessed.
+
+    This prevents circular import deadlocks by deferring instance creation
+    until after all modules are imported.
+    """
+    global _mcp_instance
+    if _mcp_instance is None:
+        _mcp_instance = get_mcp_server()
+    return _mcp_instance
+
+
+# LAZY module-level accessor to prevent circular import deadlock
+# DO NOT call get_mcp_server() here - it will be called on first attribute access
+class _McpLazyProxy:
+    """Lazy proxy that defers mcp instance creation until first attribute access."""
+
+    def __getattr__(self, name):
+        # Get the actual mcp instance on first access
+        return getattr(_get_mcp_lazy(), name)
+
+
+mcp = _McpLazyProxy()  # type: ignore[assignment]
 
 
 def handle_tool_errors(func: Callable[..., T]) -> Callable[..., T]:

@@ -14,8 +14,9 @@ logger = logging.getLogger(__name__)
 
 # Import modules from package structure
 from ..clients.bedrock import BedrockClient
-from ..core import format_output, handle_tool_errors, mcp
+from ..core import format_output, handle_tool_errors
 from ..core.domains import DomainDetector
+from ..core.server import mcp  # Import mcp directly from server to avoid circular import
 from ..core.session_manager import SessionTracker
 from ..core.validation import SecurityValidator
 from ..decorators import inject_client_context
