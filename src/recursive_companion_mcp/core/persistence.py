@@ -82,7 +82,6 @@ class SessionPersistenceManager:
             logger.warning("Session persistence will be disabled for this session")
             self._storage_available = False
 
-        # Session write lock to prevent concurrent writes
         self._write_locks: dict[str, asyncio.Lock] = {}
 
         if self._storage_available:
@@ -96,7 +95,6 @@ class SessionPersistenceManager:
         return self.storage_path / f"session_{session_id}.json"
 
     def _get_write_lock(self, session_id: str) -> asyncio.Lock:
-        """Get or create write lock for a session."""
         if session_id not in self._write_locks:
             self._write_locks[session_id] = asyncio.Lock()
         return self._write_locks[session_id]
@@ -271,7 +269,6 @@ class SessionPersistenceManager:
             return []
 
     def _list_session_files(self) -> list[Path]:
-        """List all session files in storage directory."""
         return list(self.storage_path.glob("session_*.json"))
 
     async def cleanup_old_sessions(self, max_age_seconds: int = 86400 * 7):

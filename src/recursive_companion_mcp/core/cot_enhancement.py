@@ -100,7 +100,6 @@ Create an improved version that excels in {domain_type} quality criteria while m
         iteration_num = iteration_data.get("iteration_number", 0)
         domain_type = iteration_data.get("domain_type", "general")
 
-        # Analyze convergence context for reasoning
         convergence_context = self._analyze_convergence_context(convergence_score, iteration_num)
 
         critique_summary = self._summarize_critiques(critiques)
@@ -272,7 +271,7 @@ Should refinement continue? Consider quality vs. efficiency."""
         if isinstance(critiques[0], dict):
             summaries = []
             for i, critique in enumerate(critiques):
-                focus = critique.get("focus", f"Area {i+1}")
+                focus = critique.get("focus", f"Area {i + 1}")
                 content = critique.get("content", str(critique))[:200]
                 summaries.append(f"- {focus}: {content}...")
             return "\n".join(summaries)
@@ -311,7 +310,6 @@ Should refinement continue? Consider quality vs. efficiency."""
         # Base complexity from content length
         length_factor = min(content_length / 1000, 1.0)  # 0-1 based on length up to 1000 chars
 
-        # Domain complexity multipliers
         domain_complexity = {
             "technical": 0.8,
             "legal": 0.9,

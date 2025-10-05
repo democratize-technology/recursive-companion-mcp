@@ -84,7 +84,6 @@ class EmbeddingService:
                 raise
 
     async def get_embedding(self, text: str) -> list[float]:
-        """Get text embedding with caching"""
         # Truncate text if too long
         if len(text) > self.config.max_text_length:
             text = text[: self.config.max_text_length]
@@ -92,10 +91,8 @@ class EmbeddingService:
         # Create cache key (MD5 used for non-security caching purpose)
         text_hash = hashlib.md5(text.encode(), usedforsecurity=False).hexdigest()  # nosec
 
-        # Check cache first
         if text_hash in self._embedding_cache:
             self._cache_hits += 1
-            # Move to end (LRU)
             self._embedding_cache.move_to_end(text_hash)
             logger.debug(f"Embedding cache hit. Hit rate: {self.get_cache_hit_rate():.2%}")
             return self._embedding_cache[text_hash]
@@ -105,7 +102,6 @@ class EmbeddingService:
         # Ensure initialized
         await self._ensure_initialized()
 
-        # Generate embedding
         try:
             body = json.dumps({"inputText": text, "dimensions": 1536, "normalize": True})
 
@@ -134,14 +130,12 @@ class EmbeddingService:
             raise
 
     def get_cache_hit_rate(self) -> float:
-        """Get cache hit rate for monitoring"""
         total = self._cache_hits + self._cache_misses
         if total == 0:
             return 0.0
         return self._cache_hits / total
 
     def get_cache_stats(self) -> dict[str, Any]:
-        """Get cache statistics"""
         return {
             "hits": self._cache_hits,
             "misses": self._cache_misses,
@@ -200,7 +194,6 @@ class ConvergenceDetector:
             # Calculate similarity
             score = self.cosine_similarity(current_emb, previous_emb)
 
-            # Record in history
             self._convergence_history.append(
                 {
                     "score": score,
@@ -209,7 +202,6 @@ class ConvergenceDetector:
                 }
             )
 
-            # Log for debugging
             logger.info(
                 f"Convergence check: score={score:.4f}, threshold={threshold:.4f}, converged={score >= threshold}"
             )
@@ -218,11 +210,9 @@ class ConvergenceDetector:
 
         except Exception as e:
             logger.error(f"Convergence check failed: {e}")
-            # Return False on error to continue iterations
             return False, 0.0
 
     def get_convergence_history(self) -> list[dict[str, Any]]:
-        """Get history of convergence checks"""
         return self._convergence_history.copy()
 
     def get_stats(self) -> dict[str, Any]:

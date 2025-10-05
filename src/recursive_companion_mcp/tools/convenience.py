@@ -56,7 +56,6 @@ async def quick_refine(
     session_id = start_result["session_id"]
     tracker.set_current_session(session_id, prompt)
 
-    # Auto-continue until done or timeout
     start_time = time.time()
     iterations = 0
     last_preview = ""

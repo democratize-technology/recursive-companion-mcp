@@ -99,7 +99,6 @@ class ServerConfig:
     request_timeout: int = field(default_factory=lambda: int(os.getenv("REQUEST_TIMEOUT", "300")))
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert config to dictionary"""
         return {
             "aws_region": self.aws_region,
             "bedrock_model_id": self.bedrock_model_id,

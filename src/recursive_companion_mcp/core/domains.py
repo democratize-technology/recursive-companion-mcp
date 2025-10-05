@@ -178,7 +178,6 @@ class DomainDetector:
 
     @staticmethod
     def detect_domain(prompt: str) -> str:
-        """Auto-detect domain based on keywords and patterns"""
         prompt_lower = prompt.lower()
         domain_scores = {}
 
@@ -206,5 +205,4 @@ class DomainDetector:
 
 
 def get_domain_system_prompt(domain: str) -> str:
-    """Get domain-specific system prompt"""
     return DOMAIN_PROMPTS.get(domain, DOMAIN_PROMPTS["general"])

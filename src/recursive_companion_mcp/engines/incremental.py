@@ -646,7 +646,6 @@ Provide specific, actionable feedback for improvement."""
         """Synthesize revision with CoT enhancement and check convergence"""
         system_prompt = self._get_domain_system_prompt(session.domain)
 
-        # Prepare iteration data for CoT enhancement
         iteration_data = {
             "current_draft": session.current_draft,
             "previous_draft": session.previous_draft,
@@ -815,7 +814,6 @@ Create an improved response that addresses the critiques while maintaining accur
             return response
 
     async def get_status(self, session_id: str) -> dict[str, Any]:
-        """Get current status of a refinement session"""
         session = await self.session_manager.get_session(session_id)
         if not session:
             active_sessions = await self.session_manager.list_active_sessions()
@@ -848,7 +846,6 @@ Create an improved response that addresses the critiques while maintaining accur
         }
 
     async def get_final_result(self, session_id: str) -> dict[str, Any]:
-        """Get the final refined result"""
         session = await self.session_manager.get_session(session_id)
         if not session:
             active_sessions = await self.session_manager.list_active_sessions()
@@ -964,9 +961,7 @@ Create an improved response that addresses the critiques while maintaining accur
         return ProgressTracker.get_status_emoji(status)
 
     def _get_model_name(self) -> str:
-        """Get current model name for performance hints"""
         return ConfigurationManager.get_model_name()
 
     def _get_domain_system_prompt(self, domain: str) -> str:
-        """Get domain-specific system prompt"""
         return ConfigurationManager.get_domain_system_prompt(domain)

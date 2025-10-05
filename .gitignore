@@ -37,6 +37,8 @@ coverage.json
 htmlcov/
 *.coverage
 .tox/
+.mypy_cache/
+.ruff_cache/
 
 # Documentation
 docs/_build/

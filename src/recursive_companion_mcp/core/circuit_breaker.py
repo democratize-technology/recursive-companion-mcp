@@ -83,13 +83,11 @@ class CircuitBreakerStats:
     state_changes: list = field(default_factory=list)
 
     def failure_rate(self) -> float:
-        """Calculate current failure rate."""
         if self.total_calls == 0:
             return 0.0
         return self.failed_calls / self.total_calls
 
     def reset_consecutive_counts(self):
-        """Reset consecutive counters when state changes."""
         self.consecutive_failures = 0
         self.consecutive_successes = 0
 
@@ -121,7 +119,6 @@ class CircuitBreaker:
         self._last_state_change = time.time()
 
     async def _should_open_circuit(self) -> bool:
-        """Determine if circuit should open based on failures."""
         # Check consecutive failure threshold
         if self.stats.consecutive_failures >= self.config.failure_threshold:
             return True
@@ -134,11 +131,9 @@ class CircuitBreaker:
         return False
 
     async def _should_close_circuit(self) -> bool:
-        """Determine if circuit should close from half-open state."""
         return self.stats.consecutive_successes >= self.config.success_threshold
 
     async def _can_attempt_reset(self) -> bool:
-        """Check if enough time has passed to attempt reset."""
         if self.stats.last_failure_time is None:
             return True
 
@@ -146,7 +141,6 @@ class CircuitBreaker:
         return time_since_failure >= self.config.timeout
 
     async def _change_state(self, new_state: CircuitState):
-        """Change circuit state and log the transition."""
         async with self._state_lock:
             old_state = self.state
             if old_state != new_state:
@@ -257,7 +251,6 @@ class CircuitBreaker:
             raise
 
     async def _execute_function(self, func: Callable[..., T], *args, **kwargs) -> T:
-        """Execute function handling both sync and async."""
         if asyncio.iscoroutinefunction(func):
             return await func(*args, **kwargs)
         else:
@@ -266,7 +259,6 @@ class CircuitBreaker:
             return await loop.run_in_executor(None, func, *args, **kwargs)
 
     async def _record_success(self):
-        """Record successful call and update state if needed."""
         self.stats.total_calls += 1
         self.stats.successful_calls += 1
         self.stats.consecutive_successes += 1
@@ -279,7 +271,6 @@ class CircuitBreaker:
                 await self._change_state(CircuitState.CLOSED)
 
     async def _record_failure(self):
-        """Record failed call and update state if needed."""
         self.stats.total_calls += 1
         self.stats.failed_calls += 1
         self.stats.consecutive_failures += 1
@@ -295,7 +286,6 @@ class CircuitBreaker:
             await self._change_state(CircuitState.OPEN)
 
     def get_stats(self) -> dict[str, Any]:
-        """Get current statistics and state."""
         return {
             "name": self.name,
             "state": self.state.value,
@@ -322,7 +312,6 @@ class CircuitBreaker:
         }
 
     async def reset(self):
-        """Manually reset the circuit breaker to closed state."""
         await self._change_state(CircuitState.CLOSED)
         self.stats = CircuitBreakerStats()
         logger.info(f"Circuit breaker '{self.name}' manually reset")
@@ -341,17 +330,14 @@ class CircuitBreakerManager:
     def get_or_create(
         self, name: str, config: CircuitBreakerConfig | None = None
     ) -> CircuitBreaker:
-        """Get existing or create new circuit breaker."""
         if name not in self._breakers:
             self._breakers[name] = CircuitBreaker(name, config)
         return self._breakers[name]
 
     def get_all_stats(self) -> dict[str, Any]:
-        """Get statistics for all circuit breakers."""
         return {name: breaker.get_stats() for name, breaker in self._breakers.items()}
 
     async def reset_all(self):
-        """Reset all circuit breakers."""
         for breaker in self._breakers.values():
             await breaker.reset()
 

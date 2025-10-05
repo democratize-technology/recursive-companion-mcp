@@ -179,7 +179,6 @@ class CognitiveEnhancer:
         return self._create_final_result()
 
     def _create_final_result(self) -> dict[str, Any]:
-        """Create final result dictionary"""
         if not self.iteration_history:
             return {
                 "success": False,
@@ -217,7 +216,6 @@ class CognitiveEnhancer:
         }
 
     def get_iteration_history(self) -> list[dict[str, Any]]:
-        """Get iteration history as serializable dictionaries"""
         return [
             {
                 "iteration": r.iteration,

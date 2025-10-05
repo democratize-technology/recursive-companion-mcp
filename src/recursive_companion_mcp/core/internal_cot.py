@@ -88,11 +88,9 @@ class AsyncChainOfThoughtProcessor:
         logger.debug(f"Added reasoning step: {stage}")
 
     def get_reasoning_chain(self) -> list[dict[str, Any]]:
-        """Get the complete reasoning chain."""
         return self.reasoning_steps.copy()
 
     def clear_reasoning_chain(self) -> None:
-        """Clear the current reasoning chain."""
         self.reasoning_steps.clear()
         logger.debug(f"Cleared reasoning chain for conversation: {self.conversation_id}")
 
