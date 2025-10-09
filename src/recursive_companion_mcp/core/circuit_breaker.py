@@ -42,23 +42,23 @@ T = TypeVar("T")
 class CircuitState(Enum):
     """Circuit breaker states."""
 
-    CLOSED = "closed"  # Normal operation
-    OPEN = "open"  # Blocking calls due to failures
-    HALF_OPEN = "half_open"  # Testing if service recovered
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
 
 
 @dataclass
 class CircuitBreakerConfig:
     """Configuration for circuit breaker behavior."""
 
-    failure_threshold: int = 5  # Failures before opening
-    success_threshold: int = 2  # Successes in half-open before closing
-    timeout: float = 60.0  # Seconds before trying half-open
-    failure_rate_threshold: float = 0.5  # Failure rate to open (50%)
-    min_calls: int = 10  # Minimum calls before evaluating failure rate
+    failure_threshold: int = 5
+    success_threshold: int = 2
+    timeout: float = 60.0
+    failure_rate_threshold: float = 0.5
+    min_calls: int = 10
 
     # Specific error types that trigger the breaker
-    tracked_exceptions: tuple = (Exception,)  # Track all by default
+    tracked_exceptions: tuple = (Exception,)
 
     # Exceptions that should bypass the circuit breaker
     excluded_exceptions: tuple = (
@@ -119,11 +119,9 @@ class CircuitBreaker:
         self._last_state_change = time.time()
 
     async def _should_open_circuit(self) -> bool:
-        # Check consecutive failure threshold
         if self.stats.consecutive_failures >= self.config.failure_threshold:
             return True
 
-        # Check failure rate if we have enough calls
         if self.stats.total_calls >= self.config.min_calls:
             if self.stats.failure_rate() >= self.config.failure_rate_threshold:
                 return True
@@ -196,7 +194,6 @@ class CircuitBreaker:
             CircuitBreakerOpenError: If circuit is open and no fallback
             Original exception: If circuit is closed and func fails
         """
-        # Check circuit state
         if self.state == CircuitState.OPEN:
             if await self._can_attempt_reset():
                 await self._change_state(CircuitState.HALF_OPEN)
@@ -222,7 +219,6 @@ class CircuitBreaker:
                         f"Circuit breaker '{self.name}' is testing recovery"
                     )
 
-        # Try to execute the function
         try:
             # Use lock for half-open state
             if self.state == CircuitState.HALF_OPEN:
@@ -231,7 +227,6 @@ class CircuitBreaker:
             else:
                 result = await self._execute_function(func, *args, **kwargs)
 
-            # Record success
             await self._record_success()
             return result
 
@@ -240,7 +235,6 @@ class CircuitBreaker:
             raise
 
         except self.config.tracked_exceptions as e:
-            # Record failure
             await self._record_failure()
 
             # Use fallback if available
@@ -265,7 +259,6 @@ class CircuitBreaker:
         self.stats.consecutive_failures = 0
         self.stats.last_success_time = time.time()
 
-        # Check if we should close circuit from half-open
         if self.state == CircuitState.HALF_OPEN:
             if await self._should_close_circuit():
                 await self._change_state(CircuitState.CLOSED)
@@ -277,7 +270,6 @@ class CircuitBreaker:
         self.stats.consecutive_successes = 0
         self.stats.last_failure_time = time.time()
 
-        # Check if we should open circuit
         if self.state == CircuitState.CLOSED:
             if await self._should_open_circuit():
                 await self._change_state(CircuitState.OPEN)
@@ -342,5 +334,4 @@ class CircuitBreakerManager:
             await breaker.reset()
 
 
-# Global circuit breaker manager instance
 circuit_manager = CircuitBreakerManager()

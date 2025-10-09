@@ -40,8 +40,6 @@ from ..core.cot_enhancement import create_cot_enhancer
 # Use internal chain-of-thought implementation for security
 from ..core.internal_cot import TOOL_SPECS, AsyncChainOfThoughtProcessor
 from ..core.persistence import persistence_manager
-
-# Extracted utility modules
 from ..core.progress_tracker import ProgressTracker
 from ..core.refinement_types import RefinementSession, RefinementStatus
 
@@ -76,7 +74,6 @@ class SessionManager:
         )
         self.sessions[session_id] = session
 
-        # Persist the new session
         if self._persistence_enabled:
             await self._persist_session(session)
 
@@ -84,11 +81,9 @@ class SessionManager:
 
     async def get_session(self, session_id: str) -> RefinementSession | None:
         """Get a session by ID, loading from persistence if needed"""
-        # Check in-memory sessions first
         if session_id in self.sessions:
             return self.sessions[session_id]
 
-        # Try to load from persistence
         if self._persistence_enabled:
             session_data = await persistence_manager.load_session(session_id)
             if session_data:
@@ -164,20 +159,17 @@ class SessionManager:
                     setattr(session, key, value)
             session.updated_at = datetime.utcnow()
 
-            # Persist updated session
             if self._persistence_enabled:
                 await self._persist_session(session)
         return session
 
     async def list_active_sessions(self) -> list:
         """List all active sessions, including persisted ones"""
-        # First get persisted sessions
         if self._persistence_enabled:
             persisted = await persistence_manager.list_sessions()
             for session_info in persisted[:10]:  # Load max 10 most recent
                 session_id = session_info["session_id"]
                 if session_id not in self.sessions:
-                    # Try to load the session
                     await self.get_session(session_id)
 
         return [
@@ -217,13 +209,10 @@ class IncrementalRefineEngine:
         self.session_manager = SessionManager()
         self.convergence_detector = ConvergenceDetector()
 
-        # Initialize CoT processor placeholder
         self.cot_processor = None
 
-        # Initialize CoT enhancer for prompt improvement
         self.cot_enhancer = create_cot_enhancer(enabled=True)
 
-        # Initialize Chain of Thought availability check
         if not COT_AVAILABLE:
             logger.warning(
                 "chain-of-thought-tool not available. Install with: pip install chain-of-thought-tool"
@@ -235,7 +224,6 @@ class IncrementalRefineEngine:
         if COT_AVAILABLE:
             logger.info("Chain of Thought will enhance draft, critique, and synthesis steps")
 
-        # Log enhancer initialization
         if self.cot_enhancer.cot_available:
             logger.info(
                 "CoT enhancer initialized - prompts will include structured thinking patterns"
@@ -258,7 +246,6 @@ class IncrementalRefineEngine:
                 if "toolConfig" in basic_request:
                     del basic_request["toolConfig"]
 
-                # Extract the prompt from the request
                 messages = basic_request.get("messages", [])
                 if messages:
                     prompt = messages[0].get("content", [{}])[0].get("text", "")
@@ -272,7 +259,6 @@ class IncrementalRefineEngine:
                 bedrock_client=self.bedrock.bedrock_client, initial_request=request
             )
 
-            # Extract the final response text
             if "output" in result and "message" in result["output"]:
                 content = result["output"]["message"].get("content", [])
                 for item in content:
@@ -429,12 +415,10 @@ class IncrementalRefineEngine:
         """Generate initial draft with CoT enhancement"""
         system_prompt = self._get_domain_system_prompt(session.domain)
 
-        # Enhance the initial prompt using the CoT enhancer
         enhanced_user_prompt = self.cot_enhancer.enhance_initial_refinement_prompt(
             session.prompt, session.domain
         )
 
-        # Create CoT processor for this draft step
         if COT_AVAILABLE and self.cot_processor is not None:
             processor = AsyncChainOfThoughtProcessor(conversation_id=f"draft-{session.session_id}")
 
@@ -451,7 +435,6 @@ You have access to Chain of Thought tools to structure your reasoning:
 
 Provide a comprehensive, well-structured response to the user's request."""
 
-            # Prepare messages for draft generation with enhanced prompt
             messages = [
                 {
                     "role": "user",
@@ -475,7 +458,6 @@ Provide a comprehensive, well-structured response to the user's request."""
             # Fallback to basic generation without CoT tools, but still use enhanced prompt
             draft = await self.bedrock.generate_text(enhanced_user_prompt, system_prompt)
 
-        # Log CoT enhancement details
         logger.info(f"Generating draft with CoT enhancement (available: {COT_AVAILABLE})")
         if COT_AVAILABLE:
             logger.debug("Draft generated using Chain of Thought reasoning")
@@ -523,7 +505,6 @@ Provide a comprehensive, well-structured response to the user's request."""
             os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-sonnet-20240229-v1:0"),
         )
 
-        # Define critique types
         critique_types = [
             (
                 "accuracy and completeness",
@@ -602,14 +583,12 @@ Provide specific, actionable feedback for improvement."""
 
             critique_tasks.append(task)
 
-        # Log CoT enhancement for critiques
         logger.info(
             f"Generating {len(critique_tasks)} critiques with CoT enhancement (available: {COT_AVAILABLE})"
         )
         if COT_AVAILABLE:
             logger.debug("Critiques generated using Chain of Thought reasoning")
 
-        # Generate critiques in parallel
         critiques = await asyncio.gather(*critique_tasks, return_exceptions=True)
         valid_critiques = [c for c in critiques if isinstance(c, str)]
 
@@ -655,10 +634,8 @@ Provide specific, actionable feedback for improvement."""
             "domain_type": session.domain,
         }
 
-        # Enhance the revision prompt using the CoT enhancer
         enhanced_user_prompt = self.cot_enhancer.enhance_iteration_prompt(iteration_data)
 
-        # Create CoT processor for synthesis step
         if COT_AVAILABLE and self.cot_processor is not None:
             processor = AsyncChainOfThoughtProcessor(
                 conversation_id=f"revise-{session.session_id}-{session.current_iteration}"
@@ -702,7 +679,6 @@ Create an improved response that addresses the critiques while maintaining accur
                 enhanced_user_prompt, system_prompt, temperature=0.6
             )
 
-        # Log CoT enhancement for synthesis
         logger.info(
             f"Generating synthesis revision with CoT enhancement (available: {COT_AVAILABLE})"
         )
@@ -711,7 +687,6 @@ Create an improved response that addresses the critiques while maintaining accur
                 f"Synthesis completed with {len(session.critiques)} critiques using Chain of Thought reasoning"
             )
 
-        # Calculate convergence
         current_embedding = await self.bedrock.get_embedding(revision)
         previous_embedding = await self.bedrock.get_embedding(session.current_draft)
         convergence_score = self.convergence_detector.cosine_similarity(
@@ -778,7 +753,6 @@ Create an improved response that addresses the critiques while maintaining accur
                 },
             }
         else:
-            # Continue refining
             await self.session_manager.update_session(
                 session.session_id, status=RefinementStatus.CRITIQUING
             )
@@ -916,7 +890,6 @@ Create an improved response that addresses the critiques while maintaining accur
                 "_human_action": "Use list_refinement_sessions to find valid sessions",
             }
 
-        # Check if session is already completed
         if session.status in [
             RefinementStatus.CONVERGED,
             RefinementStatus.ERROR,
@@ -934,7 +907,6 @@ Create an improved response that addresses the critiques while maintaining accur
                 "_human_action": "Use get_final_result to retrieve the completed result",
             }
 
-        # Mark as aborted
         await self.session_manager.update_session(session_id, status=RefinementStatus.ABORTED)
 
         return {
