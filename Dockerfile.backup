@@ -1,0 +1,162 @@
+# =============================================================================
+# Recursive Companion MCP - Production Dockerfile
+# Multi-stage build for secure, efficient deployment
+# =============================================================================
+# Build arguments for version pinning and reproducibility
+ARG PYTHON_VERSION=3.12-slim
+ARG UV_VERSION=0.9.2
+ARG RECURSIVE_COMPANION_VERSION=0.1.0
+
+# Port configuration - customizable at build and runtime
+ARG MCP_PORT=8087
+
+# =============================================================================
+# Runtime Configuration Arguments
+# All major MCP server configurations can be set at build time
+# =============================================================================
+ARG MCP_HOST=127.0.0.1
+ARG LOG_LEVEL=INFO
+ARG RECURSIVE_COMPANION_RATE_LIMIT_PER_MINUTE=40
+ARG RECURSIVE_COMPANION_MAX_CONCURRENT_SESSIONS=12
+ARG RECURSIVE_COMPANION_SESSION_TTL=3600
+ARG RECURSIVE_COMPANION_MAX_ITERATIONS=20
+ARG RECURSIVE_COMPANION_CONVERGENCE_THRESHOLD=0.85
+
+# =============================================================================
+# Stage 1: Base Builder with System Dependencies
+# =============================================================================
+FROM python:${PYTHON_VERSION} AS base-builder
+
+# Security: Set non-root user early with specific UID/GID
+ARG USERNAME=appuser
+ARG USER_UID=1001
+ARG USER_GID=1001
+
+# Environment variables for security and reproducibility
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONHASHSEED=random \
+    DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies with security updates
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+        # Build tools for Python packages
+        build-essential \
+        # Security: Keep ca-certificates for HTTPS
+        ca-certificates \
+        # Required for some packages
+        git \
+        # For proper DNS resolution
+        dnsutils \
+        # Process management
+        procps \
+        # Clean up to reduce attack surface
+        && apt-get autoremove -y \
+        && apt-get clean \
+        && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Upgrade pip and install setuptools
+RUN pip install --upgrade pip setuptools wheel
+
+# =============================================================================
+# Stage 2: Dependency Builder with Caching
+# =============================================================================
+FROM base-builder AS dependency-builder
+
+WORKDIR /build
+
+# Copy package definition files first for better layer caching
+COPY pyproject.toml uv.lock README.md ./
+COPY src/ ./src/
+
+# Create virtual environment and install dependencies
+# Install in development mode to include the package itself
+RUN python -m venv /opt/venv && \
+    /opt/venv/bin/pip install --upgrade pip && \
+    /opt/venv/bin/pip install -e . && \
+    # Clean up build artifacts
+    rm -rf /tmp/* /root/.cache/pip
+
+# =============================================================================
+# Stage 3: Runtime Image (Minimal)
+# =============================================================================
+FROM python:${PYTHON_VERSION} AS runtime
+
+# Security: Create non-root user
+ARG USERNAME=appuser
+ARG USER_UID=1001
+ARG USER_GID=1001
+
+# Create user and group with specific IDs
+RUN groupadd -g ${USER_GID} ${USERNAME} && \
+    useradd -m -d /home/${USERNAME} -u ${USER_UID} -g ${USER_GID} -s /bin/bash ${USERNAME}
+
+# Set secure environment variables with configurable defaults
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    HOME="/home/appuser" \
+    # Recursive Companion MCP Configuration (from build args)
+    LOG_LEVEL=${LOG_LEVEL} \
+    RECURSIVE_COMPANION_RATE_LIMIT_PER_MINUTE=${RECURSIVE_COMPANION_RATE_LIMIT_PER_MINUTE} \
+    RECURSIVE_COMPANION_MAX_CONCURRENT_SESSIONS=${RECURSIVE_COMPANION_MAX_CONCURRENT_SESSIONS} \
+    RECURSIVE_COMPANION_SESSION_TTL=${RECURSIVE_COMPANION_SESSION_TTL} \
+    RECURSIVE_COMPANION_MAX_ITERATIONS=${RECURSIVE_COMPANION_MAX_ITERATIONS} \
+    RECURSIVE_COMPANION_CONVERGENCE_THRESHOLD=${RECURSIVE_COMPANION_CONVERGENCE_THRESHOLD} \
+    # MCP Server configuration
+    MCP_HTTP_HOST=${MCP_HOST} \
+    MCP_HTTP_PORT=${MCP_PORT}
+
+# Install runtime dependencies only
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        # Runtime essentials
+        ca-certificates \
+        curl \
+        # DNS resolution
+        dnsutils \
+        # Process monitoring
+        procps \
+        # For health checks
+        && apt-get autoremove -y \
+        && apt-get clean \
+        && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Copy virtual environment from builder stage
+COPY --from=dependency-builder --chown=${USERNAME}:${USER_GID} /opt/venv /opt/venv
+
+# Create application directory with proper permissions
+WORKDIR /app
+RUN mkdir -p /app && \
+    chown ${USERNAME}:${USER_GID} /app
+
+# Copy application code
+COPY --from=dependency-builder --chown=${USERNAME}:${USER_GID} /build/src/ ./src/
+COPY --from=dependency-builder --chown=${USERNAME}:${USER_GID} /build/pyproject.toml ./
+
+# Create directories for data and logs with proper permissions
+RUN mkdir -p /app/data /app/logs && \
+    chown -R ${USERNAME}:${USER_GID} /app
+
+# Switch to non-root user
+USER ${USERNAME}
+
+# Set working directory
+WORKDIR /app
+
+# Expose port for HTTP transport (configurable)
+EXPOSE ${MCP_PORT}
+
+# Health check for both stdio and HTTP modes (uses configurable port)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:${MCP_PORT}/mcp || python -c "import recursive_companion_mcp"
+
+# Default entry point (stdio mode)
+ENTRYPOINT ["python", "-m", "recursive_companion_mcp"]
+
+# Set default command to empty array - allows override with CMD in docker run
+CMD []

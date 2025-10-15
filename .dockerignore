@@ -1,0 +1,153 @@
+# =============================================================================
+# Dockerignore for Recursive Companion MCP
+# Optimizes build context by excluding unnecessary files
+# =============================================================================
+
+# Git and version control
+.git/
+.gitignore
+.gitattributes
+.github/
+.git-*
+
+# Documentation and markdown (keep README.md for build)
+docs/
+examples/
+# README.md - needed for build metadata
+
+# Development and testing
+tests/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Development tools and IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Python cache and temporary files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.envrc
+.venv/
+
+# Logs and runtime files
+*.log
+logs/
+*.pid
+*.seed
+*.pid.lock
+tmp/
+temp/
+
+# Local configuration and secrets
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.pem
+*.key
+*.crt
+secrets/
+credentials/
+
+# Backup and temporary files
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+.~lock*
+
+# OS generated files
+.DS_Store?
+ehthumbs.db
+Icon?
+Thumbs.db
+
+# Node.js (if any present)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Package manager files
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environment and uv caches
+.uv-cache/
+# uv.lock - needed for reproducible builds
+
+# Development scripts and utilities
+scripts/
+dev-*.py
+demo_*.py
+
+# Analysis and tools outputs
+*.prof
+*.trace
+analysis/
+reports/
+
+# Claude-related files (keep project-specific ones)
+# .claude/  # Commented out - you may want to keep this for context
+PHASE_*.md
+
+# Pre-commit and development hooks
+.pre-commit-config.yaml
+setup.cfg.backup
+
+# Makefile and build artifacts (keep the main one)
+# Makefile  # Commented out - you may want this for development
+
+# Large files that shouldn't be in container
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Local development database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Jupyter notebooks (if any)
+*.ipynb
+.ipynb_checkpoints/
+
+# Local SSL certificates
+*.pem
+*.key
+*.crt
+ssl/
+
+# Monitoring and profiling data
+.monitoring/
+.tracing/
+
+# Local overrides
+docker-compose.override.yml
+docker-compose.dev.yml

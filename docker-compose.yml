@@ -1,0 +1,162 @@
+# =============================================================================
+# Recursive Companion MCP - Docker Compose Configuration
+# Production-ready deployment with health checks and monitoring
+# =============================================================================
+version: '3.8'
+
+services:
+  # Recursive Companion MCP Server - HTTP Transport (Primary)
+  recursive-companion-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Base configuration
+        PYTHON_VERSION: "3.11-slim"
+        UV_VERSION: "0.9.2"
+        RECURSIVE_COMPANION_VERSION: "0.1.0"
+
+        # Network Configuration
+        MCP_PORT: ${MCP_PORT:-8087}
+        MCP_HOST: ${MCP_HOST:-0.0.0.0}
+
+        # Recursive Companion Configuration
+        RECURSIVE_COMPANION_RATE_LIMIT_PER_MINUTE: ${RECURSIVE_COMPANION_RATE_LIMIT_PER_MINUTE:-40}
+        RECURSIVE_COMPANION_MAX_CONCURRENT_SESSIONS: ${RECURSIVE_COMPANION_MAX_CONCURRENT_SESSIONS:-12}
+        RECURSIVE_COMPANION_SESSION_TTL: ${RECURSIVE_COMPANION_SESSION_TTL:-3600}
+        RECURSIVE_COMPANION_MAX_ITERATIONS: ${RECURSIVE_COMPANION_MAX_ITERATIONS:-20}
+        RECURSIVE_COMPANION_CONVERGENCE_THRESHOLD: ${RECURSIVE_COMPANION_CONVERGENCE_THRESHOLD:-0.85}
+
+        # Logging
+        LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    image: recursive-companion-mcp:latest
+    container_name: recursive-companion-mcp
+    restart: unless-stopped
+
+    # Security: Run as non-root user
+    user: "1001:1001"
+
+    # Environment variables
+    environment:
+      # Transport mode
+      MCP_TRANSPORT: http
+      MCP_HTTP_HOST: 0.0.0.0
+      MCP_HTTP_PORT: 8087
+
+      # Logging
+      LOG_LEVEL: INFO
+
+      # Recursive Companion settings
+      RECURSIVE_COMPANION_RATE_LIMIT_PER_MINUTE: "40"
+      RECURSIVE_COMPANION_MAX_CONCURRENT_SESSIONS: "12"
+      RECURSIVE_COMPANION_SESSION_TTL: "3600"
+      RECURSIVE_COMPANION_MAX_ITERATIONS: "20"
+      RECURSIVE_COMPANION_CONVERGENCE_THRESHOLD: "0.85"
+
+      # Backend configuration (uncomment as needed)
+      # AWS_REGION: us-east-1
+      # AWS_PROFILE: default
+      # LITELLM_API_KEY: ${LITELLM_API_KEY}
+      # OLLAMA_HOST: http://ollama:11434
+
+    # Port mapping for HTTP transport (configurable)
+    ports:
+      - "${MCP_PORT:-8087}:${MCP_PORT:-8087}"
+
+    # Volume mounts for persistence and logs
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      # Optional: Mount AWS credentials if needed
+      # - ~/.aws:/home/appuser/.aws:ro
+
+    # Health check (uses configurable port)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${MCP_PORT:-8087}/mcp"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    # Resource limits for stability (Lightweight server)
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Network configuration
+    networks:
+      - recursive-companion-network
+
+  # Optional: Ollama for local LLM backend
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+    networks:
+      - recursive-companion-network
+    profiles:
+      - ollama
+
+  # Optional: Redis for session caching
+  redis:
+    image: redis:7-alpine
+    container_name: recursive-companion-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+    networks:
+      - recursive-companion-network
+    profiles:
+      - redis
+
+# Network configuration
+networks:
+  recursive-companion-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.26.0.0/16
+
+# Volume definitions
+volumes:
+  ollama_data:
+    driver: local
+  redis_data:
+    driver: local

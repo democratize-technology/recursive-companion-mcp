@@ -40,6 +40,14 @@ def get_mcp_server(host: str = "127.0.0.1", port: int = 8080) -> FastMCP:
     # Create new instance with specified host/port
     mcp_server = FastMCP("recursive-companion", host=host, port=port)
 
+    # Add HTTP health endpoint for ALB health checks
+    from starlette.responses import JSONResponse
+
+    @mcp_server.custom_route("/health", methods=["GET"])
+    async def health_check(request):
+        """HTTP health check endpoint for ALB"""
+        return JSONResponse({"status": "healthy", "service": "recursive-companion"})
+
     # Cache for module-level access
     if _mcp_instance is None:
         _mcp_instance = mcp_server
