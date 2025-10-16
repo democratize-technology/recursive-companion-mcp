@@ -39,6 +39,9 @@ dependencies = [
     "idna>=3.10",
     "pip-licenses>=5.0.0",
     "chain-of-thought-tool==0.1.1",
+    # OAuth 2.1 authentication dependencies
+    "pyjwt[crypto]>=2.8.0,<3.0.0",
+    "cachetools>=5.3.0,<6.0.0",
 ]
 
 [project.optional-dependencies]
@@ -60,6 +63,7 @@ dev = [
     # Security constraint: Ensure virtualenv >= 20.26.6 to prevent PYSEC-2024-187 (command injection)
     "virtualenv>=20.26.6",
     "toml>=0.10.2",  # For version management scripts
+    "types-cachetools>=5.3.0",  # Type stubs for cachetools (OAuth auth)
 ]
 release = [
     "python-semantic-release>=8.0.0",

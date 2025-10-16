@@ -3,12 +3,18 @@ MCP Server setup and core decorators for Recursive Companion
 """
 
 import logging
+import os
 import sys
 from collections.abc import Callable
 from functools import wraps
 from typing import Any, TypeVar
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
+
+# OAuth 2.1 authentication imports
+from ..auth import get_auth_provider
+from ..auth.middleware import AuthMiddleware
+from ..auth.oauth21 import get_protected_resource_metadata
 
 # Configure logging to stderr only - NEVER stdout in MCP servers
 logging.basicConfig(
@@ -40,13 +46,49 @@ def get_mcp_server(host: str = "127.0.0.1", port: int = 8080) -> FastMCP:
     # Create new instance with specified host/port
     mcp_server = FastMCP("recursive-companion", host=host, port=port)
 
+    # Auth provider - initialized after server creation
+    auth_provider = get_auth_provider()
+
     # Add HTTP health endpoint for ALB health checks
     from starlette.responses import JSONResponse
 
     @mcp_server.custom_route("/health", methods=["GET"])
     async def health_check(request):
-        """HTTP health check endpoint for ALB"""
+        """HTTP health check endpoint for ALB target group health checks."""
         return JSONResponse({"status": "healthy", "service": "recursive-companion"})
+
+    # Add OAuth Protected Resource Metadata endpoint if OAuth is enabled
+    if os.environ.get("AUTH_PROVIDER") == "oauth21":
+
+        @mcp_server.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
+        async def protected_resource_metadata(request):
+            """OAuth 2.0 Protected Resource Metadata (RFC9728)."""
+            from starlette.responses import JSONResponse
+
+            server_url = os.environ.get("MCP_SERVER_URL")
+
+            # Support both direct issuer URL and Cognito-style config
+            issuer_url = os.environ.get("OAUTH_ISSUER_URL")
+            if not issuer_url:
+                user_pool_id = os.environ.get("USER_POOL_ID")
+                region = os.environ.get("AWS_REGION", "us-east-1")
+                if user_pool_id:
+                    issuer_url = f"https://cognito-idp.{region}.amazonaws.com/{user_pool_id}"
+
+            metadata = get_protected_resource_metadata(server_url, issuer_url)
+            return JSONResponse(content=metadata)
+
+    # Add authentication middleware
+    try:
+        app = mcp_server.http_app()
+        app.add_middleware(AuthMiddleware, auth_provider=auth_provider)
+        logger.info(
+            f"Authentication middleware added: "
+            f"enabled={auth_provider.is_enabled()}, "
+            f"provider={auth_provider.__class__.__name__}"
+        )
+    except Exception as e:
+        logger.warning(f"Could not add middleware: {e}")
 
     # Cache for module-level access
     if _mcp_instance is None:
