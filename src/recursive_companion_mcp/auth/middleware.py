@@ -45,7 +45,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
         auth_provider: Authentication provider instance (OAuth21Provider or NoAuthProvider)
     """
 
-    def __init__(self, app, auth_provider: AuthProvider) -> None:  # type: ignore
+    def __init__(self, app, auth_provider: AuthProvider) -> None:  # type: ignore[no-untyped-def]
         """Initialize middleware with auth provider.
 
         Args:
@@ -61,7 +61,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             f"provider={auth_provider.__class__.__name__}"
         )
 
-    async def dispatch(self, request: Request, call_next):  # type: ignore
+    async def dispatch(self, request: Request, call_next):  # type: ignore[no-untyped-def]
         """Process request with transport-aware authentication.
 
         Flow:
@@ -104,13 +104,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     content=b"Unauthorized",
                     media_type="text/plain",
                 )
-            else:
-                # Generic 401 (shouldn't happen with proper provider)
-                return Response(
-                    status_code=401,
-                    content=b"Unauthorized",
-                    media_type="text/plain",
-                )
+            # Generic 401 (shouldn't happen with proper provider)
+            return Response(
+                status_code=401,
+                content=b"Unauthorized",
+                media_type="text/plain",
+            )
 
         # Inject user_context into request state for downstream tools
         # Tools can access via request.state.user_context if available
@@ -129,5 +128,4 @@ class AuthMiddleware(BaseHTTPMiddleware):
             logger.debug(f"Unauthenticated request (auth disabled): path={request.url.path}")
 
         # Continue request processing
-        response = await call_next(request)
-        return response
+        return await call_next(request)

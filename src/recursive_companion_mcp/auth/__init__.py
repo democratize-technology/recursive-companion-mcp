@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Optional, Protocol
+from typing import Any, Protocol
 
 from .models import UserContext
 from .oauth21 import OAuth21Provider
@@ -43,7 +43,7 @@ class AuthProvider(Protocol):
         get_www_authenticate_header: WWW-Authenticate header for 401 responses
     """
 
-    def get_user_context(self, request: Any) -> Optional[UserContext]:
+    def get_user_context(self, request: Any) -> UserContext | None:
         """Extract user context from request.
 
         Args:
@@ -68,7 +68,7 @@ class AuthProvider(Protocol):
         """
         ...
 
-    def get_www_authenticate_header(self) -> Optional[str]:
+    def get_www_authenticate_header(self) -> str | None:
         """Get WWW-Authenticate header value for 401 responses.
 
         Per RFC9728, OAuth 2.1 protected resources must return
@@ -93,7 +93,7 @@ class NoAuthProvider:
     - Environments where auth is handled upstream (e.g., ALB)
     """
 
-    def get_user_context(self, request: Any) -> Optional[UserContext]:
+    def get_user_context(self, request: Any) -> UserContext | None:
         """Allow all requests without authentication.
 
         Args:
@@ -112,7 +112,7 @@ class NoAuthProvider:
         """
         return False
 
-    def get_www_authenticate_header(self) -> Optional[str]:
+    def get_www_authenticate_header(self) -> str | None:
         """No WWW-Authenticate header in no-auth mode.
 
         Returns:
@@ -149,10 +149,11 @@ def get_auth_provider() -> AuthProvider:
         logger.info("Auth: disabled (NoAuthProvider)")
         return NoAuthProvider()
 
-    elif provider_type == "oauth21":
+    if provider_type == "oauth21":
         logger.info("Auth: OAuth 2.1 enabled")
         return OAuth21Provider()
 
-    else:
-        logger.warning(f"Unknown AUTH_PROVIDER '{provider_type}', using NoAuthProvider. Valid options: none, oauth21")
-        return NoAuthProvider()
+    logger.warning(
+        f"Unknown AUTH_PROVIDER '{provider_type}', using NoAuthProvider. Valid options: none, oauth21"
+    )
+    return NoAuthProvider()

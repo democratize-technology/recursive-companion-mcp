@@ -22,10 +22,10 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 import jwt
-from cachetools import TTLCache  # type: ignore[import-untyped]  # types-cachetools stub has pip env issues with uv
+from cachetools import TTLCache  # type: ignore[import-untyped]
 from jwt import PyJWKClient
 
 from .models import UserContext
@@ -97,7 +97,9 @@ class OAuth21Provider:
         if not self.server_url:
             raise ValueError("MCP_SERVER_URL must be set for OAuth21Provider")
         if not self.issuer_url:
-            raise ValueError("Either OAUTH_ISSUER_URL or USER_POOL_ID must be set for OAuth21Provider")
+            raise ValueError(
+                "Either OAUTH_ISSUER_URL or USER_POOL_ID must be set for OAuth21Provider"
+            )
         if not self.audience:
             raise ValueError("OAUTH_AUDIENCE must be set for OAuth21Provider")
 
@@ -123,7 +125,7 @@ class OAuth21Provider:
             f"  JWKS Max Keys: {self.jwks_max_keys}"
         )
 
-    def get_user_context(self, request: Any) -> Optional[UserContext]:
+    def get_user_context(self, request: Any) -> UserContext | None:
         """Validate bearer token and extract user context.
 
         Performs comprehensive validation:
@@ -174,7 +176,11 @@ class OAuth21Provider:
                 tier=claims.get("tier", "free"),
                 tenant_id=claims.get("tenant_id"),
                 scopes=claims.get("scope", "").split() if claims.get("scope") else [],
-                token_expires_at=(datetime.fromtimestamp(claims["exp"], tz=timezone.utc) if "exp" in claims else None),
+                token_expires_at=(
+                    datetime.fromtimestamp(claims["exp"], tz=timezone.utc)
+                    if "exp" in claims
+                    else None
+                ),
                 metadata={
                     "iss": claims.get("iss"),
                     "aud": claims.get("aud"),
@@ -210,7 +216,7 @@ class OAuth21Provider:
         """
         return f'Bearer realm="{self.server_url}", as_uri="{self.issuer_url}/.well-known/openid-configuration"'
 
-    def _validate_token(self, token: str) -> Optional[dict[str, Any]]:
+    def _validate_token(self, token: str) -> dict[str, Any] | None:
         """Validate JWT token with comprehensive security checks.
 
         Validates:
@@ -257,7 +263,9 @@ class OAuth21Provider:
             # Per RFC8707, tokens should be bound to specific resources
             if "resource" in claims:
                 if self.server_url not in claims["resource"]:
-                    logger.warning(f"Token resource claim doesn't include this server: {claims['resource']}")
+                    logger.warning(
+                        f"Token resource claim doesn't include this server: {claims['resource']}"
+                    )
                     return None
 
             logger.info(f"Token validated successfully for user: {claims.get('sub')}")
@@ -356,7 +364,7 @@ class OAuth21Provider:
 
         return "unknown"
 
-    def _get_header(self, request: Any, header_name: str) -> Optional[str]:
+    def _get_header(self, request: Any, header_name: str) -> str | None:
         """Get header from request (works with FastAPI/Starlette).
 
         Args:
@@ -370,7 +378,7 @@ class OAuth21Provider:
             # Type cast: headers.get() returns Any in Starlette's type stubs
             value = request.headers.get(header_name)
             return str(value) if value is not None else None
-        elif hasattr(request, "get"):
+        if hasattr(request, "get"):
             # Type cast: dict-like get() returns Any
             value = request.get(header_name)
             return str(value) if value is not None else None
