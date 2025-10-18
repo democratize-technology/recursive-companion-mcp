@@ -155,6 +155,66 @@ For comprehensive examples with realistic scenarios, error handling patterns, an
 | `MAX_ITERATIONS` | 10 | Maximum refinement iterations |
 | `REQUEST_TIMEOUT` | 300 | Timeout in seconds |
 
+## 🌐 Streamable HTTP Transport
+
+The server supports a stateless Streamable HTTP transport for enterprise deployments requiring horizontal scalability and web-based integration.
+
+### Enable Streamable HTTP Transport
+
+```bash
+# Set transport type to streamable_http
+export MCP_TRANSPORT=streamable_http
+export MCP_HTTP_HOST=127.0.0.1  # Optional, defaults to 127.0.0.1
+export MCP_HTTP_PORT=8080       # Optional, defaults to 8080
+
+# Run the server
+uv run python -m recursive_companion_mcp
+```
+
+Or in a single command:
+```bash
+MCP_TRANSPORT=streamable_http MCP_HTTP_PORT=8080 uv run python -m recursive_companion_mcp
+```
+
+### Streamable HTTP Features
+
+- ✅ **Stateless Request Handling**: New server instance per request for complete isolation
+- ✅ **Session Persistence**: Sessions maintained across requests via session IDs
+- ✅ **JSON-RPC 2.0 Compliant**: Full MCP protocol support over HTTP
+- ✅ **Enterprise Scalability**: Horizontal scaling with load balancers
+- ✅ **Web Integration**: Perfect for web-based AI assistants
+- ✅ **Health Checks**: Built-in health check endpoints
+
+### Example HTTP Request
+
+```bash
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "tools/call",
+    "params": {
+      "name": "start_refinement",
+      "arguments": {
+        "topic": "Improve this algorithm design",
+        "style": "analytical"
+      }
+    },
+    "id": 1
+  }'
+```
+
+### Transport Modes Comparison
+
+| Feature | Stdio Transport | HTTP Transport | Streamable HTTP Transport |
+|---------|----------------|----------------|--------------------------|
+| **Use Case** | Claude Desktop | Network access | Enterprise scalability |
+| **State Management** | In-memory | In-memory | Stateless per request |
+| **Session Persistence** | No | No | Yes (via session IDs) |
+| **Load Balancing** | No | No | Yes |
+| **Web Integration** | No | Limited | Full support |
+
 ## Performance
 
 With optimized settings:
