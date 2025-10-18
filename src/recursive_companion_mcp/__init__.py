@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 from .core.server import get_mcp_server  # noqa: E402
 
-__all__ = ["main", "create_server"]
+__all__ = ["create_server", "main"]
 
 
 def create_server():
@@ -121,6 +121,80 @@ def http_main(host: str = "127.0.0.1", port: int = 8080) -> None:
         raise
 
 
+def streamable_http_main(host: str = "127.0.0.1", port: int = 8080) -> None:
+    """Run the MCP server with Streamable HTTP transport for enterprise scalability.
+
+    Args:
+        host: Host to bind to (default: 127.0.0.1 for localhost only)
+        port: Port to bind to (default: 8080)
+    """
+    import uvicorn
+
+    logger.info(f"Starting Recursive Companion MCP server (Streamable HTTP) on {host}:{port}")
+
+    # Test AWS Bedrock connection
+    try:
+        import boto3
+
+        from .config import config
+
+        bedrock_test = boto3.client(service_name="bedrock", region_name=config.aws_region)
+        bedrock_test.list_foundation_models()
+        logger.info("Successfully connected to AWS Bedrock")
+    except Exception as e:
+        logger.warning(f"AWS Bedrock connection test failed (continuing): {e}")
+
+    try:
+        # Create server factory for stateless operation
+        from .core.server import create_server_factory
+        from .transport import StreamableHTTPTransport
+
+        server_factory = create_server_factory()
+
+        # Create streamable HTTP transport
+        transport = StreamableHTTPTransport(
+            mcp_server_factory=server_factory,
+            host=host,
+            port=port,
+            enable_json_response=True,
+            analytics_mode=os.environ.get("ANALYTICS_MODE", "false").lower() == "true",
+        )
+
+        # Create and run Starlette app
+        app = transport.create_app()
+
+        # Add session ID to response headers if analytics mode is enabled
+        if transport.analytics_mode:
+
+            @app.middleware("http")
+            async def add_session_header(request, call_next):
+                response = await call_next(request)
+                # Session ID is added to request headers during session creation
+                session_id = getattr(request.state, "session_id", None)
+                if session_id:
+                    response.headers["Mcp-Session-Id"] = session_id
+                return response
+
+        # Run with uvicorn
+        config = uvicorn.Config(
+            app=app,
+            host=host,
+            port=port,
+            log_level="warning",  # Reduce uvicorn logging, let our logger handle it
+            access_log=False,
+        )
+
+        server = uvicorn.Server(config)
+        logger.info(f"Streamable HTTP transport ready on http://{host}:{port}/mcp")
+        server.run()
+
+    except KeyboardInterrupt:
+        logger.info("Server shutdown requested")
+    except Exception:
+        logger.exception("Server error")
+        raise
+
+
 if __name__ == "__main__":
     # Check if HTTP mode requested
     transport = os.environ.get("MCP_TRANSPORT", "stdio")
@@ -129,5 +203,9 @@ if __name__ == "__main__":
         host = os.environ.get("MCP_HTTP_HOST", "127.0.0.1")
         port = int(os.environ.get("MCP_HTTP_PORT", "8080"))
         http_main(host=host, port=port)
+    elif transport == "streamable_http":
+        host = os.environ.get("MCP_HTTP_HOST", "127.0.0.1")
+        port = int(os.environ.get("MCP_HTTP_PORT", "8080"))
+        streamable_http_main(host=host, port=port)
     else:
         main()

@@ -136,19 +136,19 @@ def handle_tool_errors(func: Callable[..., T]) -> Callable[..., T]:
             return await func(*args, **kwargs)  # type: ignore[misc, return-value]
         except ValueError as e:
             logger.warning(f"Validation error in {tool_name}: {e}")
-            return f"❌ **Invalid input**: {str(e)}"
+            return f"❌ **Invalid input**: {e!s}"
         except KeyError as e:
             logger.error(f"Configuration error in {tool_name}: Missing key {e}")
             return f"❌ **Configuration error**: Missing required field {e}. Check your environment variables."
         except ImportError as e:
             logger.error(f"Import error in {tool_name}: {e}")
-            error_msg = f"❌ **Missing dependency**: {str(e)}. "
+            error_msg = f"❌ **Missing dependency**: {e!s}. "
             if "boto3" in str(e):
                 error_msg += "Install with: pip install boto3"
             return error_msg
         except Exception as e:
             logger.exception(f"Unexpected error in {tool_name}")
-            return f"❌ **Unexpected error in {tool_name}**: {type(e).__name__}: {str(e)}"
+            return f"❌ **Unexpected error in {tool_name}**: {type(e).__name__}: {e!s}"
 
     return wrapper  # type: ignore[misc, return-value]
 
@@ -224,3 +224,34 @@ def inject_client_context(func: Callable[..., T]) -> Callable[..., T]:
         return await func(*args, **kwargs)  # type: ignore[misc, return-value]
 
     return wrapper  # type: ignore[misc, return-value]
+
+
+def create_server_factory():
+    """
+    Create a factory function for MCP server instances.
+
+    This factory creates fresh server instances for each request
+    in the streamable HTTP transport, ensuring stateless operation.
+
+    Returns:
+        Factory function that creates new MCP server instances
+    """
+
+    def server_factory():
+        """Factory function to create new MCP server instances."""
+        # Import tools lazily to avoid circular imports
+        from ..tools import (  # noqa: F401
+            abort_refinement,
+            continue_refinement,
+            current_session,
+            get_final_result,
+            get_refinement_status,
+            list_refinement_sessions,
+            quick_refine,
+            start_refinement,
+        )
+
+        # Create fresh server instance
+        return get_mcp_server()
+
+    return server_factory

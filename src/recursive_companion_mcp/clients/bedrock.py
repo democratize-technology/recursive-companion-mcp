@@ -142,7 +142,6 @@ class BedrockClient:
         # Fallback function returns None to indicate service unavailable
         async def fallback():
             logger.warning(f"Circuit breaker open for model {model}, returning fallback")
-            return None
 
         return await self._generation_breaker.call(invoke, fallback=fallback)
 
@@ -232,7 +231,6 @@ class BedrockClient:
             # Fallback returns None if circuit is open
             async def fallback():
                 logger.warning("Embedding circuit breaker open, returning None")
-                return None
 
             result = await self._embedding_breaker.call(get_embedding, fallback=fallback)
 

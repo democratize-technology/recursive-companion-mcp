@@ -360,13 +360,12 @@ class SessionPersistenceManager:
         """
         if isinstance(obj, dict):
             return {k: self._make_serializable(v) for k, v in obj.items()}
-        elif isinstance(obj, list | tuple):
+        if isinstance(obj, list | tuple):
             return [self._make_serializable(item) for item in obj]
-        elif isinstance(obj, str | int | float | bool | type(None)):
+        if isinstance(obj, str | int | float | bool | type(None)):
             return obj
-        else:
-            # Convert other types to string
-            return str(obj)
+        # Convert other types to string
+        return str(obj)
 
     async def get_session_size(self, session_id: str) -> int | None:
         """

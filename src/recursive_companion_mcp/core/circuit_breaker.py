@@ -197,16 +197,15 @@ class CircuitBreaker:
         if self.state == CircuitState.OPEN:
             if await self._can_attempt_reset():
                 await self._change_state(CircuitState.HALF_OPEN)
+            # Circuit is open and timeout hasn't expired
+            elif fallback:
+                logger.debug(f"Circuit breaker '{self.name}' is OPEN, using fallback")
+                return await self._execute_function(fallback, *args, **kwargs)
             else:
-                # Circuit is open and timeout hasn't expired
-                if fallback:
-                    logger.debug(f"Circuit breaker '{self.name}' is OPEN, using fallback")
-                    return await self._execute_function(fallback, *args, **kwargs)
-                else:
-                    raise CircuitBreakerOpenError(
-                        f"Circuit breaker '{self.name}' is OPEN. "
-                        f"Service unavailable for {self.config.timeout - (time.time() - self.stats.last_failure_time):.1f}s"
-                    )
+                raise CircuitBreakerOpenError(
+                    f"Circuit breaker '{self.name}' is OPEN. "
+                    f"Service unavailable for {self.config.timeout - (time.time() - self.stats.last_failure_time):.1f}s"
+                )
 
         # Handle half-open state with limited concurrency
         if self.state == CircuitState.HALF_OPEN:
@@ -214,10 +213,7 @@ class CircuitBreaker:
             if self._half_open_lock.locked():
                 if fallback:
                     return await self._execute_function(fallback, *args, **kwargs)
-                else:
-                    raise CircuitBreakerOpenError(
-                        f"Circuit breaker '{self.name}' is testing recovery"
-                    )
+                raise CircuitBreakerOpenError(f"Circuit breaker '{self.name}' is testing recovery")
 
         try:
             # Use lock for half-open state
@@ -247,10 +243,9 @@ class CircuitBreaker:
     async def _execute_function(self, func: Callable[..., T], *args, **kwargs) -> T:
         if asyncio.iscoroutinefunction(func):
             return await func(*args, **kwargs)
-        else:
-            # Run sync function in executor to not block
-            loop = asyncio.get_event_loop()
-            return await loop.run_in_executor(None, func, *args, **kwargs)
+        # Run sync function in executor to not block
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, func, *args, **kwargs)
 
     async def _record_success(self):
         self.stats.total_calls += 1

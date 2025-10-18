@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -30,9 +30,9 @@ class UserContext:
     """
 
     user_id: str
-    email: Optional[str] = None
+    email: str | None = None
     tier: str = "free"
-    tenant_id: Optional[str] = None
+    tenant_id: str | None = None
     scopes: list[str] = field(default_factory=list)
-    token_expires_at: Optional[datetime] = None
+    token_expires_at: datetime | None = None
     metadata: dict[str, Any] = field(default_factory=dict)

@@ -7,12 +7,12 @@ from .results import get_final_result
 from .sessions import current_session, list_refinement_sessions
 
 __all__ = [
-    "start_refinement",
-    "continue_refinement",
-    "get_refinement_status",
-    "get_final_result",
-    "list_refinement_sessions",
-    "current_session",
     "abort_refinement",
+    "continue_refinement",
+    "current_session",
+    "get_final_result",
+    "get_refinement_status",
+    "list_refinement_sessions",
     "quick_refine",
+    "start_refinement",
 ]

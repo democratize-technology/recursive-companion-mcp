@@ -161,7 +161,7 @@ class AsyncChainOfThoughtProcessor:
             return {
                 "output": {
                     "message": {
-                        "content": [{"text": f"Error in chain of thought processing: {str(e)}"}]
+                        "content": [{"text": f"Error in chain of thought processing: {e!s}"}]
                     }
                 }
             }

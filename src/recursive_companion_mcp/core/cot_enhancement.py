@@ -253,14 +253,13 @@ Should refinement continue? Consider quality vs. efficiency."""
         """Analyze convergence context for reasoning enhancement."""
         if score >= 0.95:
             return "High convergence - content is stabilizing rapidly"
-        elif score >= 0.85:
+        if score >= 0.85:
             return "Moderate convergence - making steady progress toward stability"
-        elif score >= 0.70:
+        if score >= 0.70:
             return "Low convergence - significant changes still happening"
-        elif iteration <= 2:
+        if iteration <= 2:
             return "Early iterations - expect lower convergence as content develops"
-        else:
-            return "Low convergence despite multiple iterations - may need strategy change"
+        return "Low convergence despite multiple iterations - may need strategy change"
 
     def _summarize_critiques(self, critiques: list) -> str:
         """Summarize critiques for inclusion in prompts."""
@@ -275,9 +274,8 @@ Should refinement continue? Consider quality vs. efficiency."""
                 content = critique.get("content", str(critique))[:200]
                 summaries.append(f"- {focus}: {content}...")
             return "\n".join(summaries)
-        else:
-            # Handle simple string critiques
-            return "\n".join(f"- {str(critique)[:200]}..." for critique in critiques[:3])
+        # Handle simple string critiques
+        return "\n".join(f"- {str(critique)[:200]}..." for critique in critiques[:3])
 
     def should_use_cot(self, complexity_score: float = 0.6) -> bool:
         """Determine if CoT should be used based on complexity.

@@ -169,10 +169,9 @@ class CognitiveEnhancer:
                 if converged:
                     logger.info(f"Converged at iteration {iteration} with score {score:.4f}")
                     break
-                else:
-                    logger.info(
-                        f"Iteration {iteration} similarity: {score:.4f} (threshold: {self.convergence_detector.config.threshold:.4f})"
-                    )
+                logger.info(
+                    f"Iteration {iteration} similarity: {score:.4f} (threshold: {self.convergence_detector.config.threshold:.4f})"
+                )
 
             current_input = result
 

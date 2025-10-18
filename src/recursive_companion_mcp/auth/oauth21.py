@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import jwt
-from cachetools import TTLCache  # type: ignore[import-untyped]
+from cachetools import TTLCache
 from jwt import PyJWKClient
 
 from .models import UserContext
@@ -149,7 +149,7 @@ class OAuth21Provider:
             # Rate limiting: Prevent DoS via expensive JWKS fetches
             client_ip = self._get_client_ip(request)
             if not self._check_rate_limit(client_ip):
-                logger.warning(f"Rate limit exceeded for client IP: {client_ip}")
+                logger.warning("Rate limit exceeded for client IP: %s", client_ip)
                 return None
 
             # Extract bearer token
@@ -188,9 +188,9 @@ class OAuth21Provider:
                 },
             )
 
-        except Exception as e:
+        except Exception:
             # Never expose internal errors to clients
-            logger.error(f"Error extracting user context: {e}", exc_info=True)
+            logger.exception("Error extracting user context")
             return None
 
     def is_enabled(self) -> bool:
@@ -216,7 +216,7 @@ class OAuth21Provider:
         """
         return f'Bearer realm="{self.server_url}", as_uri="{self.issuer_url}/.well-known/openid-configuration"'
 
-    def _validate_token(self, token: str) -> dict[str, Any] | None:
+    def _validate_token(self, token: str) -> dict[str, Any] | None:  # noqa: PLR0911
         """Validate JWT token with comprehensive security checks.
 
         Validates:
@@ -235,6 +235,9 @@ class OAuth21Provider:
         Note:
             Returns None for any validation failure. Failures are logged
             to stderr for security monitoring.
+
+            Method complexity (PLR0911) accepted: Each return corresponds
+            to a specific OAuth 2.1 validation failure mode.
         """
         try:
             # Get JWKS client (with TTL-based caching)
@@ -261,30 +264,29 @@ class OAuth21Provider:
 
             # Additional validation: check 'resource' claim if present
             # Per RFC8707, tokens should be bound to specific resources
-            if "resource" in claims:
-                if self.server_url not in claims["resource"]:
-                    logger.warning(
-                        f"Token resource claim doesn't include this server: {claims['resource']}"
-                    )
-                    return None
+            if "resource" in claims and self.server_url not in claims["resource"]:
+                logger.warning(
+                    "Token resource claim doesn't include this server: %s", claims["resource"]
+                )
+                return None
 
-            logger.info(f"Token validated successfully for user: {claims.get('sub')}")
-            return claims
+            logger.info("Token validated successfully for user: %s", claims.get("sub"))
+            return claims  # noqa: TRY300
 
         except jwt.ExpiredSignatureError:
             logger.warning("Token validation failed: token expired")
             return None
         except jwt.InvalidAudienceError:
-            logger.warning(f"Token validation failed: invalid audience (expected {self.audience})")
+            logger.warning("Token validation failed: invalid audience (expected %s)", self.audience)
             return None
         except jwt.InvalidIssuerError:
-            logger.warning(f"Token validation failed: invalid issuer (expected {self.issuer_url})")
+            logger.warning("Token validation failed: invalid issuer (expected %s)", self.issuer_url)
             return None
         except jwt.InvalidTokenError as e:
-            logger.warning(f"Token validation failed: {e}")
+            logger.warning("Token validation failed: %s", e)
             return None
-        except Exception as e:
-            logger.error(f"Unexpected error validating token: {e}", exc_info=True)
+        except Exception:
+            logger.exception("Unexpected error validating token")
             return None
 
     def _get_jwks_client(self) -> PyJWKClient:
@@ -305,16 +307,16 @@ class OAuth21Provider:
 
         # Create new client and cache it
         try:
-            logger.debug(f"Initializing JWKS client for {self.jwks_url}")
+            logger.debug("Initializing JWKS client for %s", self.jwks_url)
             client = PyJWKClient(
                 self.jwks_url,
                 cache_keys=True,
                 max_cached_keys=self.jwks_max_keys,
             )
             self._jwks_cache["jwks_client"] = client
-            return client
-        except Exception as e:
-            logger.error(f"Failed to initialize JWKS client: {e}", exc_info=True)
+            return client  # noqa: TRY300
+        except Exception:
+            logger.exception("Failed to initialize JWKS client")
             raise
 
     def _check_rate_limit(self, client_id: str, limit: int = 60) -> bool:

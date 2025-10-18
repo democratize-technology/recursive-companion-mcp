@@ -389,7 +389,7 @@ class IncrementalRefineEngine:
             # Provide AI-helpful error context
             error_response = {
                 "success": False,
-                "error": f"Refinement error: {str(e)}",
+                "error": f"Refinement error: {e!s}",
                 "status": "error",
                 "_ai_context": {
                     "session_status": session.status.value if session else "unknown",
@@ -752,40 +752,39 @@ Create an improved response that addresses the critiques while maintaining accur
                     "typical_range": "0.92-0.96 is usually optimal for most use cases",
                 },
             }
-        else:
-            await self.session_manager.update_session(
-                session.session_id, status=RefinementStatus.CRITIQUING
-            )
+        await self.session_manager.update_session(
+            session.session_id, status=RefinementStatus.CRITIQUING
+        )
 
-            # Prepare AI insights based on convergence
-            ai_prediction = {}
-            if convergence_score > 0.9:
-                ai_prediction = {
-                    "_ai_prediction": "Likely to converge in 1-2 more iterations",
-                    "_ai_suggestion": "Consider abort_refinement if current quality is sufficient",
-                }
-            elif convergence_score > 0.8:
-                ai_prediction = {
-                    "_ai_prediction": "Making good progress, 2-3 iterations likely needed",
-                    "_ai_pattern": "Typical convergence acceleration happens around 0.85",
-                }
-
-            response = {
-                "success": True,
-                "status": "revision_complete",
-                "iteration": session.current_iteration,
-                "progress": self._format_progress(session),
-                "message": (
-                    f"{self._get_status_emoji(RefinementStatus.REVISING)} "
-                    f"Revision complete. Convergence: {round(convergence_score, 4)}"
-                ),
-                "convergence_score": round(convergence_score, 4),
-                "draft_preview": revision[:300] + "..." if len(revision) > 300 else revision,
-                "next_action": "continue_refinement",
-                "continue_needed": True,
+        # Prepare AI insights based on convergence
+        ai_prediction = {}
+        if convergence_score > 0.9:
+            ai_prediction = {
+                "_ai_prediction": "Likely to converge in 1-2 more iterations",
+                "_ai_suggestion": "Consider abort_refinement if current quality is sufficient",
             }
-            response.update(ai_prediction)
-            return response
+        elif convergence_score > 0.8:
+            ai_prediction = {
+                "_ai_prediction": "Making good progress, 2-3 iterations likely needed",
+                "_ai_pattern": "Typical convergence acceleration happens around 0.85",
+            }
+
+        response = {
+            "success": True,
+            "status": "revision_complete",
+            "iteration": session.current_iteration,
+            "progress": self._format_progress(session),
+            "message": (
+                f"{self._get_status_emoji(RefinementStatus.REVISING)} "
+                f"Revision complete. Convergence: {round(convergence_score, 4)}"
+            ),
+            "convergence_score": round(convergence_score, 4),
+            "draft_preview": revision[:300] + "..." if len(revision) > 300 else revision,
+            "next_action": "continue_refinement",
+            "continue_needed": True,
+        }
+        response.update(ai_prediction)
+        return response
 
     async def get_status(self, session_id: str) -> dict[str, Any]:
         session = await self.session_manager.get_session(session_id)
